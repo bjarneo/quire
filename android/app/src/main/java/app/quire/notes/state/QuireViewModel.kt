@@ -22,6 +22,8 @@ import app.quire.notes.core.Format
 import app.quire.notes.core.ImageSource
 import app.quire.notes.core.Images
 import app.quire.notes.core.Img
+import app.quire.notes.core.Lock
+import app.quire.notes.core.LockKey
 import app.quire.notes.core.Md
 import app.quire.notes.core.Sample
 import app.quire.notes.core.Sync
@@ -416,6 +418,11 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             val merged = LinkedHashMap(loaded.files)
             for (p in dirty) files[p]?.let { merged[p] = it }
             if (merged == files && loaded.folders == folders) return@launch
+            // An unlocked note that changed on disk opens with the key in memory, or locks again.
+            for (p in unlocked.keys.toList()) {
+                val t = merged[p]
+                if (t != null && t != files[p] && p !in dirty) outsideLockedText(p, t)
+            }
             setStructure(merged, loaded.folders)
             tabs = tabs.filter { it in merged }
             recent = recent.filter { it in merged }
@@ -423,8 +430,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (a == null || a !in merged) {
                 active = tabs.firstOrNull()
                 loadEditor(active, null)
-            } else if (editor.text != merged[a]) {
-                val t = merged.getValue(a)
+            } else if (a !in unlocked && editor.text != textOf(a)) {
+                val t = textOf(a)
                 editor = TextFieldValue(t, shiftSelection(editor, t))
             }
             updateCount()
@@ -450,7 +457,16 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun folderList(): List<String> = Md.folderList(folders, files.keys)
 
     private fun setDoc(path: String, text: String) {
-        files = files + (path to text)
+        val u = unlocked[path]
+        if (u != null) {
+            // An unlocked note keeps its plain text in memory. The folder copy is sealed again.
+            if (u.text == text) return
+            unlocked = unlocked + (path to Unlocked(u.key, text))
+            files = files + (path to Lock.seal(u.key, text))
+        } else {
+            if (noteLocked(path)) return
+            files = files + (path to text)
+        }
         dirty.add(path)
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
@@ -517,7 +533,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun loadEditor(path: String?, sel: OpenSel?) {
-        val t = path?.let { files[it] } ?: ""
+        val t = path?.let { textOf(it) } ?: ""
         val range = if (sel != null) TextRange(sel.start.coerceIn(0, t.length), sel.end.coerceIn(0, t.length)) else TextRange(0)
         editor = TextFieldValue(t, range)
         docKey++
@@ -556,6 +572,11 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeTab(p: String) {
+        // A closed note locks again.
+        if (p in unlocked) {
+            flushAll()
+            unlocked = unlocked - p
+        }
         val i = tabs.indexOf(p)
         val nt = tabs.filter { it != p }
         tabs = nt
@@ -665,6 +686,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         flushAll()
         val gone = files.keys.filter { Md.inDir(it, dir) }.toSet()
         dirty.removeAll(gone)
+        unlocked = unlocked - gone
         setStructure(files - gone)
         dropFolder(dir)
         val i = active?.let { tabs.indexOf(it) } ?: -1
@@ -733,13 +755,14 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (t2 != t) changed.add(key)
         }
         val wasDirty = dirty.remove(old)
+        unlocked[old]?.let { unlocked = unlocked - old + (np to it) }
         setStructure(nf, folders + ancestors(np))
         tabs = tabs.map { if (it == old) np else it }
         recent = recent.map { if (it == old) np else it }
         expanded = expanded + ancestors(np)
         if (active == old) active = np
         // The open note may be the moved one or one whose links changed. The editor must show the new text.
-        nf[active]?.let { t -> if (editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t)) }
+        active?.let { a -> (unlocked[a]?.text ?: nf[a])?.let { t -> if (editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t)) } }
         if (wasDirty) dirty.add(np)
         dirty.addAll(changed)
         flushAll()
@@ -763,6 +786,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteNote() {
         val p = active ?: return
+        unlocked = unlocked - p
         dirty.remove(p)
         val i = tabs.indexOf(p)
         val nt = tabs.filter { it != p }
@@ -836,13 +860,17 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         }
         val activeText = nf.getValue(np)
         val writeActive = dirty.remove(old) || activeText != files[old]
+        // An unlocked note keeps its plain text under the new name. The disk gets the sealed text.
+        val u = unlocked[old]
+        if (u != null) unlocked = unlocked - old + (np to u)
+        val shown = u?.text ?: activeText
         setStructure(nf)
         tabs = tabs.map { if (it == old) np else it }
         recent = recent.map { if (it == old) np else it }
         active = np
         renaming = false
-        if (editor.text != activeText) {
-            editor = TextFieldValue(activeText, shiftSelection(editor, activeText))
+        if (editor.text != shown) {
+            editor = TextFieldValue(shown, shiftSelection(editor, shown))
         }
         disk("rename $oldBase") {
             rename(old, np)
@@ -896,7 +924,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun wrapSelection(mk: String) = format(if (mk == "**") "bold" else "italic")
 
     /** The actions of the Markdown toolbar, in its order. */
-    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image")
+    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image", "lock")
 
     /** Runs one action of the Markdown toolbar on the selection of the editor. */
     fun format(action: String) {
@@ -904,7 +932,12 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             requestImagePick()
             return
         }
-        if (active == null) return
+        if (action == "lock") {
+            askLock()
+            return
+        }
+        val a = active ?: return
+        if (noteLocked(a)) return
         val f = when (action) {
             "bold" -> Fmt.BOLD
             "italic" -> Fmt.ITALIC
@@ -938,7 +971,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleTask(line: Int) {
         val p = active ?: return
-        val t = files[p] ?: return
+        if (noteLocked(p)) return
+        val t = textOf(p)
         val lines = t.split('\n').toMutableList()
         if (line !in lines.indices) return
         lines[line] = Md.toggleTaskLine(lines[line])
@@ -1118,6 +1152,148 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleEncrypt() = setSync { it.copy(encrypt = !it.encrypt, connected = false) }
     fun setPass(v: String) = setSync { it.copy(pass = v, connected = false) }
 
+    // ---- Locked notes ----------------------------------------------------------------------
+
+    /** The key and the plain text of a note that is unlocked now. */
+    class Unlocked(val key: LockKey, val text: String)
+
+    /** The unlocked notes. Only these hold plain text. The folder copy of each stays sealed. */
+    var unlocked by mutableStateOf<Map<String, Unlocked>>(emptyMap()); private set
+
+    /** True while the dialog for a new password shows. */
+    var lockDialog by mutableStateOf(false)
+
+    /** The error of the lock dialog, or null. */
+    var lockError by mutableStateOf<String?>(null); private set
+
+    /** The error under the password field of the lock panel, or null. */
+    var unlockError by mutableStateOf<String?>(null); private set
+
+    /** True while PBKDF2 runs for a lock or an unlock. */
+    var lockBusy by mutableStateOf(false); private set
+
+    /** True when the note is locked and not open now. */
+    fun noteLocked(p: String): Boolean = p !in unlocked && files[p]?.let { Lock.isLocked(it) } == true
+
+    /** The text of a note for the editor and the preview: plain while unlocked, and nothing while locked. */
+    fun textOf(p: String): String = unlocked[p]?.text ?: files[p]?.takeUnless { Lock.isLocked(it) } ?: ""
+
+    /** The text of the active note. */
+    fun activeText(): String = active?.let { textOf(it) } ?: ""
+
+    /** Opens the dialog that asks for a new password. On an unlocked note, it locks the note again at once. */
+    fun askLock() {
+        val a = active ?: return
+        if (a in unlocked) {
+            relock()
+            return
+        }
+        if (noteLocked(a)) return
+        lockError = null
+        lockDialog = true
+    }
+
+    /** Locks the active note with [pass]. The note stays open, and each save seals it again. */
+    fun lockNote(pass: String, repeat: String) {
+        if (lockBusy) return
+        if (pass.codePointCount(0, pass.length) < Lock.MIN_PASSWORD) {
+            lockError = "The password needs at least ${Lock.MIN_PASSWORD} characters."
+            return
+        }
+        if (pass != repeat) {
+            lockError = "The two passwords are not the same."
+            return
+        }
+        val a = active ?: return
+        lockBusy = true
+        viewModelScope.launch {
+            // PBKDF2 with 600000 iterations takes a moment on a phone, so it runs off the main thread.
+            val key = withContext(Dispatchers.Default) { Lock.newKey(pass) }
+            lockBusy = false
+            lockDialog = false
+            lockError = null
+            if (a !in files || noteLocked(a) || a in unlocked) return@launch
+            val text = textOf(a)
+            unlocked = unlocked + (a to Unlocked(key, text))
+            files = files + (a to Lock.seal(key, text))
+            dirty.add(a)
+            flushAll()
+            if (active == a && mode == Mode.Source) pendingEditorFocus = true
+        }
+    }
+
+    /** Locks the active note again: its plain text leaves memory. */
+    fun relock() {
+        val a = active ?: return
+        if (a !in unlocked) return
+        flushAll()
+        unlocked = unlocked - a
+        unlockError = null
+        loadEditor(a, null)
+    }
+
+    /** Opens the active locked note with [pass]. */
+    fun unlock(pass: String) {
+        if (lockBusy) return
+        val a = active ?: return
+        val text = files[a]?.takeIf { Lock.isLocked(it) } ?: return
+        lockBusy = true
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.Default) {
+                try {
+                    Result.success(Lock.open(text, pass))
+                } catch (e: SyncException) {
+                    Result.failure(e)
+                }
+            }
+            lockBusy = false
+            r.onSuccess { o ->
+                unlockError = null
+                // The note may have changed while the key was made. Then the password must open the new text.
+                if (files[a] != text) return@onSuccess
+                unlocked = unlocked + (a to Unlocked(o.key, o.text))
+                if (active == a) {
+                    loadEditor(a, null)
+                    if (mode == Mode.Source) pendingEditorFocus = true
+                }
+            }.onFailure { e -> unlockError = e.message }
+        }
+    }
+
+    /** Saves the active unlocked note as plain text again. */
+    fun removePassword() {
+        val a = active ?: return
+        val u = unlocked[a] ?: return
+        unlocked = unlocked - a
+        files = files + (a to u.text)
+        dirty.add(a)
+        flushAll()
+    }
+
+    /**
+     * An unlocked note changed outside the app, through sync or another app. The new text opens
+     * with the key in memory, or the note locks again.
+     */
+    private fun outsideLockedText(p: String, text: String) {
+        val u = unlocked[p] ?: return
+        files = files + (p to text)
+        if (!Lock.isLocked(text)) {
+            // The password was removed elsewhere: the note is plain now.
+            unlocked = unlocked - p
+            if (active == p && editor.text != text) editor = TextFieldValue(text, shiftSelection(editor, text))
+            return
+        }
+        try {
+            val plain = Lock.openWith(u.key, text)
+            unlocked = unlocked + (p to Unlocked(u.key, plain))
+            if (active == p && editor.text != plain) editor = TextFieldValue(plain, shiftSelection(editor, plain))
+        } catch (e: SyncException) {
+            unlocked = unlocked - p
+            if (active == p) loadEditor(p, null)
+            flash("${Md.base(p)} has another password now. Unlock it again.")
+        }
+    }
+
     // ---- Images ----------------------------------------------------------------------------
 
     /** The image files in the open notes folder, with their stamps. */
@@ -1128,8 +1304,13 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Opens the photo picker for the active note. */
     fun requestImagePick() {
-        if (active == null) {
+        val a = active
+        if (a == null) {
             flash("Open a note first, then add the image to it.")
+            return
+        }
+        if (noteLocked(a)) {
+            flash("Unlock the note first, then add the image to it.")
             return
         }
         pickImage = true
@@ -1186,6 +1367,10 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         val note = active
         if (note == null) {
             flash("Open a note first, then add the image to it.")
+            return
+        }
+        if (noteLocked(note)) {
+            flash("Unlock the note first, then add the image to it.")
             return
         }
         if (uris.isEmpty()) return
@@ -1519,13 +1704,19 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         if (open && (plan.writes.isNotEmpty() || plan.deletes.isNotEmpty() || plan.mkdirs.isNotEmpty() || plan.rmdirs.isNotEmpty())) {
             val nf = LinkedHashMap(files)
             var nd = folders
+            val sealed = ArrayList<Pair<String, String>>()
             for ((p, t) in plan.writes) {
-                nf[p] = t
+                // An unlocked note opens the new sealed text with its key, or locks again.
+                if (p in unlocked) sealed.add(p to t) else nf[p] = t
                 nd = nd + ancestors(p)
             }
-            for (p in plan.deletes) nf.remove(p)
+            for (p in plan.deletes) {
+                nf.remove(p)
+                unlocked = unlocked - p
+            }
             for (d in plan.mkdirs) nd = nd + d + ancestors(d)
             setStructure(nf, nd)
+            sealed.forEach { (p, t) -> outsideLockedText(p, t) }
             plan.rmdirs.forEach { dropFolder(it) }
             val gone = plan.deletes.toSet()
             if (gone.isNotEmpty()) {
@@ -1539,7 +1730,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val a = active
-            val t = a?.let { nf[it] }
+            val t = a?.let { if (it in unlocked) null else nf[it]?.takeUnless { x -> Lock.isLocked(x) } }
             if (t != null && a !in dirty && editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t))
             updateCount()
             persistSession()
@@ -1610,6 +1801,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun commands(): List<Cmd> {
         val has = active != null
+        val locked = active?.let { noteLocked(it) } == true
+        val open = active?.let { it in unlocked } == true
         val dark = isDark()
         return listOfNotNull(
             Cmd("New note") { newNote() },
@@ -1626,6 +1819,9 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (has) Cmd("Delete note") { deleteNote() } else null,
             if (has) Cmd("Close tab") { active?.let { closeTab(it) } } else null,
             if (has) Cmd("Insert image") { requestImagePick() } else null,
+            if (has && !locked && !open) Cmd("Lock note with a password…") { askLock() } else null,
+            if (open) Cmd("Lock note now") { relock() } else null,
+            if (open) Cmd("Remove password") { removePassword() } else null,
             if (syncReady()) Cmd("Sync now") { syncNow() } else null,
             Cmd("Open settings") { openSettings() },
             Cmd("Switch folder…") { goWelcome() },

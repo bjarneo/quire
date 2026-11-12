@@ -86,7 +86,8 @@ fun PreviewPane(vm: QuireViewModel, screenH: Dp) {
     val set = vm.settings
     val ctx = LocalContext.current
     val density = LocalDensity.current
-    val text = vm.files[vm.active] ?: ""
+    // An unlocked note gives its plain text. The folder copy stays sealed.
+    val text = vm.activeText()
     val blocks = remember(text) { Md.parseBlocks(text) }
     val serif = set.previewFont == "serif"
     val rootSize = set.size + if (serif) 3 else 1

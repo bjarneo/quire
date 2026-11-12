@@ -549,6 +549,10 @@ pub fn search(files: &BTreeMap<String, String>, q: &str) -> Vec<SearchResult> {
         return out;
     }
     for (p, t) in files {
+        // A locked note's text is sealed, so search has nothing to find in it.
+        if t.starts_with(crate::lock::MAGIC) {
+            continue;
+        }
         let mut hits = Vec::new();
         let mut off = 0;
         for (li, ln) in t.split('\n').enumerate() {

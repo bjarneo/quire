@@ -10,6 +10,8 @@ mod folders;
 mod format;
 mod images;
 mod keys;
+mod lock;
+mod lock_app;
 mod mcp;
 mod md;
 mod sample;
@@ -194,6 +196,62 @@ mod toolbar_tests {
             out = s.active_text().to_string();
         });
         assert_eq!(out, "Intro — with a dash\n- **hello world**");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod lock_tests {
+    use rune::{Env, Runtime};
+
+    /// Lock a note, lock it again, unlock it, then remove the password. The folder copy and
+    /// the file stay sealed until the password goes.
+    #[test]
+    fn a_note_locks_and_unlocks() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-lock-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let mut rt = Runtime::new(crate::app::init(), crate::ui::view, (1280.0, 800.0), Env { system_dark: false, scale: 1.0 });
+        rt.frame(1.0 / 60.0);
+        let set = |s: &mut crate::app::App, key: &str, v: &str| s.field(key, String::new).replace_text(v.to_string());
+        rt.update(|s, tx| {
+            s.mode = crate::app::Mode::Source;
+            let a = s.active.clone().unwrap();
+            s.set_text(&a, "# Secret\n\nThe code is 4711.".into());
+            s.ask_lock(tx);
+            set(s, "lock-pass", "short");
+            set(s, "lock-repeat", "short");
+            s.lock_note(tx);
+            assert!(s.lock_dialog.as_deref().is_some_and(|e| e.contains("at least 8")), "a short password is refused");
+            set(s, "lock-pass", "tiger lily");
+            set(s, "lock-repeat", "tiger lily");
+            s.lock_note(tx);
+            assert!(s.lock_dialog.is_none());
+            assert!(crate::lock::is_locked(&s.files()[&a]), "the folder copy is sealed");
+            assert_eq!(s.active_text(), "# Secret\n\nThe code is 4711.", "the note stays open");
+            // An edit while open is sealed too.
+            s.set_text(&a, "# Secret\n\nThe code is 1234.".into());
+            assert!(!s.files()[&a].contains("1234"));
+            s.relock();
+            assert!(s.note_locked(&a) && s.active_text().is_empty());
+            set(s, "unlock-pass", "wrong password");
+            s.unlock(tx);
+            assert_eq!(s.unlock_error.as_deref(), Some("The password does not open this note."));
+            set(s, "unlock-pass", "tiger lily");
+            s.unlock(tx);
+            assert_eq!(s.active_text(), "# Secret\n\nThe code is 1234.");
+            s.remove_password(tx);
+            assert_eq!(s.files()[&a], "# Secret\n\nThe code is 1234.");
+            s.writer.wait(std::time::Duration::from_secs(5));
+            let disk = std::fs::read_to_string(s.vault.as_ref().unwrap().path.join(&a)).unwrap();
+            assert_eq!(disk, "# Secret\n\nThe code is 1234.");
+        });
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

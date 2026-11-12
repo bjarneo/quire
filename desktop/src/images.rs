@@ -201,6 +201,10 @@ impl App {
             self.notice = Some("Open a note first, then add the image to it.".into());
             return false;
         }
+        if self.active.as_deref().is_some_and(|a| self.note_locked(a)) {
+            self.notice = Some("Unlock the note first, then add the image to it.".into());
+            return false;
+        }
         let images: Vec<&PathBuf> = paths.iter().filter(|p| md::is_image(&p.to_string_lossy())).collect();
         if images.is_empty() {
             if !paths.is_empty() {

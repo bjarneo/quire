@@ -80,21 +80,25 @@ Keep the desktop screenshots at 1280 x 800. If you use another size, keep the 16
 
 | File | What it shows | Current source |
 | --- | --- | --- |
-| `assets/editor-light.png` | The main window in the light theme. A note is open in source mode. The file tree is on the left. The outline and the "linked from" list are on the right. The hero and the "source" view of the editing section use it. | `desktop/ref/vault.png` |
-| `assets/editor-dark.png` | The same view in the dark theme. | `desktop/ref/dark.png` |
-| `assets/preview-light.png` | The same note in preview mode, light theme. | `desktop/ref/preview.png` |
-| `assets/preview-dark.png` | The same note in preview mode, dark theme. | `desktop/ref/dark-preview.png` |
-| `assets/tags.png` | The tags panel in the sidebar, with the outline and "linked from" on the right. Light theme. | `desktop/ref/tags.png` |
-| `assets/search.png` | The search panel with a query and its results. Light theme. | `desktop/ref/search.png` |
-| `assets/quick-switcher.png` | The quick switcher open on `Ctrl+O`, with a short query and fuzzy matches. Light theme. | `desktop/ref/switcher-query.png` |
-| `assets/command-palette.png` | The command palette open on `Ctrl+P`. Light theme. | `desktop/ref/commands.png` |
-| `assets/focus-mode.png` | Focus mode in the light theme. The page fades the edges of this image into the paper colour `#f8f5ef`, so keep the light theme. The page crops part of the empty space above the text. | `desktop/ref/focus.png` |
-| `assets/settings-appearance.png` | **Settings > Appearance**: the mode switch and the light theme cards, with Paper selected. | A headless render at `--scale 2`, resized to 1280x800 with `magick <2x>.png -filter Lanczos -resize 1280x800 -strip` |
-| `assets/settings-mcp.png` | **Settings > MCP**: the server switched on, the stdio transport, read-only access and the tool list. Light theme. | `desktop/ref/set-mcp-on.png` |
-| `assets/settings-sync.png` | **Settings > Sync & backup**: the grid of storage backends, with Hetzner selected and its region, bucket and remote folder fields. Light theme. The "backend" view of the sync section uses it. | `settings-sync.png`, rendered at 2x |
-| `assets/settings-sync-2.png` | **Settings > Sync & backup**, lower part: the access keys, the endpoint, When to sync, Encrypt before upload, Test connection, Sync now and the status "Connected. Last synced 2m ago." Light theme. The "options" view of the sync section uses it. | `settings-sync-2.png`, rendered at 2x |
-| `assets/welcome.png` | The welcome screen with **Create a new folder** and **Open a folder**. Light theme. | `desktop/ref/welcome.png` |
+| `assets/editor-light.png` | The main window in the light theme. A note is open in source mode, with the formatting toolbar above it. The file tree is on the left. The outline and the "linked from" list are on the right. The hero and the "source" view of the editing section use it. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/editor-dark.png` | The same view in the dark theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/preview-light.png` | The same note in preview mode, light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/preview-dark.png` | The same note in preview mode, dark theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/preview-image.png` | The sample note Garden plan in preview, with a drawing of the three spring beds in `attachments/garden-beds.png`. The "image" view of the editing section uses it. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/tags.png` | The tags panel in the sidebar, with the outline and "linked from" on the right. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/search.png` | The search panel with a query and its results. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/quick-switcher.png` | The quick switcher open on `Ctrl+O`, with a short query and fuzzy matches. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/command-palette.png` | The command palette open on `Ctrl+P`. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/focus-mode.png` | Focus mode in the light theme. The page fades the edges of this image into the paper colour `#f8f5ef`, so keep the light theme. The page crops part of the empty space above the text. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/settings-appearance.png` | **Settings > Appearance**: the mode switch, the six light theme cards with Paper selected, and the first dark themes. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/settings-mcp.png` | **Settings > MCP**: the server switched on, the stdio transport, read-only access and the tool list. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/settings-sync.png` | **Settings > Sync & backup**: the grid of storage backends, with Hetzner selected and its region, bucket and remote folder fields. Light theme. The "backend" view of the sync section uses it. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/settings-sync-2.png` | **Settings > Sync & backup**, lower part: the access keys, the endpoint, When to sync, Encrypt before upload, Test connection, Sync now and the status "Connected. Last synced 2m ago." Light theme. The "options" view of the sync section uses it. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
+| `assets/welcome.png` | The welcome screen with the lockup, **Create a new folder** and **Open a folder**. Light theme. | A headless render of the desktop app at `--scale 2`, resized to 1280x800. |
 | `assets/og.png` | The social image, 1200 x 630. It shows the lockup, the tagline and `editor-light.png`, like the hero. | Made with Chromium and ImageMagick. See below. |
+| `assets/quire.mp4` | The promo video, 38 seconds at 2560x1600 and 60 fps, with burnt-in captions. The "See it work" section and the root README use it. | Recorded with `quire --script promo.json --video raw.mp4 --fps 60 --pointer --size 1280x800 --scale 2`, then captioned with `ffmpeg drawtext`. |
+| `assets/quire.gif` | The same video at 960x600 and 12 fps, for the root README. | Made from `quire.mp4` with `palettegen` and `paletteuse`. |
+| `assets/quire-poster.png` | The poster frame of the video: the new note in preview, with its image. | A frame of the raw recording at 15.8 seconds, resized to 1280x800. |
 | `assets/phone-editor.png` | Android: a note in source mode. | Missing. See "Phone screenshots". |
 | `assets/phone-preview.png` | Android: a note in preview. | Missing. |
 | `assets/phone-switcher.png` | Android: the quick switcher. | Missing. |

@@ -115,6 +115,7 @@ object Md {
     fun tags(files: Map<String, String>): List<TagCount> {
         val m = HashMap<String, Int>()
         for (txt in files.values) {
+            if (Lock.isLocked(txt)) continue
             val t = txt.replace(fencedBlock, "").replace(inlineCode, "")
             val seen = HashSet<String>()
             for (x in tagRe.findAll(t)) {
@@ -133,6 +134,8 @@ object Md {
         if (ql.isEmpty()) return emptyList()
         val out = ArrayList<SearchResult>()
         for ((p, txt) in files) {
+            // The text of a locked note is sealed, so search has nothing to find in it.
+            if (Lock.isLocked(txt)) continue
             val hits = ArrayList<Hit>()
             var off = 0
             txt.split('\n').forEachIndexed { li, ln ->

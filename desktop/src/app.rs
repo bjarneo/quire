@@ -141,6 +141,19 @@ pub struct App {
     pub images: crate::images::Images,
     /// Files are dragged over the note.
     pub drop_over: bool,
+    /// Locked notes open for reading and editing, by path. The plain text lives only here and
+    /// in the note's editor. The folder copy in `vault.files` stays sealed.
+    pub unlocked: HashMap<String, Unlocked>,
+    /// The "Lock this note" dialog is open, with this error, or an empty string for none.
+    pub lock_dialog: Option<String>,
+    /// Why the last unlock failed.
+    pub unlock_error: Option<String>,
+}
+
+/// A locked note while it is open.
+pub struct Unlocked {
+    pub key: crate::lock::Key,
+    pub text: String,
 }
 
 pub fn init() -> App {
@@ -198,6 +211,9 @@ pub fn init() -> App {
         sync: Default::default(),
         images: Default::default(),
         drop_over: false,
+        unlocked: HashMap::new(),
+        lock_dialog: None,
+        unlock_error: None,
     };
     crate::theme::reload_omarchy();
     // The remote folder used to be one value for every notes folder. Each folder has its own now.
@@ -271,8 +287,23 @@ impl App {
         self.vault.as_ref().map_or(&EMPTY, |v| &v.files)
     }
 
+    /// The active note's text. An unlocked note gives its plain text, and a locked note none.
     pub fn active_text(&self) -> &str {
-        self.active.as_ref().and_then(|a| self.files().get(a)).map_or("", String::as_str)
+        let Some(a) = &self.active else { return "" };
+        if let Some(u) = self.unlocked.get(a) {
+            return &u.text;
+        }
+        self.files().get(a).map_or("", |t| if crate::lock::is_locked(t) { "" } else { t.as_str() })
+    }
+
+    /// The note at `p` is locked and not open: its text needs the password.
+    pub fn note_locked(&self, p: &str) -> bool {
+        !self.unlocked.contains_key(p) && self.files().get(p).is_some_and(|t| crate::lock::is_locked(t))
+    }
+
+    /// The note at `p` is locked and open now.
+    pub fn note_unlocked(&self, p: &str) -> bool {
+        self.unlocked.contains_key(p)
     }
 
     pub fn is_dark(&self, system_dark: bool) -> bool {
@@ -422,6 +453,11 @@ impl App {
         let mut any = false;
         for (rel, text) in c.changed {
             if self.dirty.contains(&rel) || self.files().get(&rel) == Some(&text) {
+                continue;
+            }
+            if self.unlocked.contains_key(&rel) {
+                self.outside_locked_text(&rel, text);
+                any = true;
                 continue;
             }
             let new = !self.files().contains_key(&rel);
@@ -582,6 +618,17 @@ impl App {
 
     /// Changes a note's text from outside the editor (a task box, a link rewrite).
     pub fn set_text(&mut self, rel: &str, text: String) {
+        if self.unlocked.contains_key(rel) {
+            if let Some(e) = self.edits.get_mut(rel)
+                && e.text != text
+            {
+                let (a, b) = (e.anchor.min(text.len()), e.focus.min(text.len()));
+                e.replace_text(text.clone());
+                e.set_selection(a, b);
+            }
+            self.store_unlocked(rel, text);
+            return;
+        }
         if let Some(e) = self.edits.get_mut(rel) {
             if e.text != text {
                 let (a, b) = (e.anchor.min(text.len()), e.focus.min(text.len()));
@@ -725,7 +772,10 @@ impl App {
 
     pub fn ensure_edit(&mut self) {
         if let Some(a) = self.active.clone() {
-            let text = self.files().get(&a).cloned().unwrap_or_default();
+            let text = match self.unlocked.get(&a) {
+                Some(u) => u.text.clone(),
+                None => self.files().get(&a).filter(|t| !crate::lock::is_locked(t)).cloned().unwrap_or_default(),
+            };
             self.edits.entry(a).or_insert_with(|| {
                 let mut e = TextEdit::new(text);
                 e.set_selection(0, 0);
@@ -750,6 +800,13 @@ impl App {
     pub fn after_edit(&mut self) {
         let Some(a) = self.active.clone() else { return };
         let Some(text) = self.edits.get(&a).map(|e| e.text.clone()) else { return };
+        if self.unlocked.contains_key(&a) {
+            self.store_unlocked(&a, text);
+            return;
+        }
+        if self.note_locked(&a) {
+            return;
+        }
         if let Some(v) = &mut self.vault {
             if v.files.get(&a) != Some(&text) {
                 v.files.insert(a.clone(), text);
@@ -810,6 +867,8 @@ impl App {
         let Some(i) = self.tabs.iter().position(|x| x == p) else { return };
         self.tabs.remove(i);
         self.edits.remove(p);
+        // A closed note locks again.
+        self.unlocked.remove(p);
         if self.active.as_deref() == Some(p) {
             self.active = self.tabs.get(i.min(self.tabs.len().saturating_sub(1))).cloned();
             if self.active.is_none() {
@@ -844,6 +903,7 @@ impl App {
 
     pub fn delete_note(&mut self) {
         let Some(p) = self.active.clone() else { return };
+        self.unlocked.remove(&p);
         let Some(v) = &mut self.vault else { return };
         v.files.remove(&p);
         let root = v.path.clone();
@@ -947,6 +1007,9 @@ impl App {
         }
         // The rename goes to disk first, then any rewritten notes, the renamed one included.
         self.writer.send(Op::Rename { root, from: old.clone(), to: np.clone() });
+        if let Some(u) = self.unlocked.remove(&old) {
+            self.unlocked.insert(np.clone(), u);
+        }
         if let Some(ed) = self.edits.remove(&old) {
             self.edits.insert(np.clone(), ed);
         }
@@ -1006,7 +1069,7 @@ impl App {
 
     /// A toolbar action on the active note's selection, as one undo step.
     pub fn format(&mut self, f: crate::format::Fmt, tx: &mut Tx) {
-        if self.active.is_none() || self.mode != Mode::Source {
+        if self.active.is_none() || self.mode != Mode::Source || self.active.as_deref().is_some_and(|a| self.note_locked(a)) {
             return;
         }
         let e = self.cur_edit();

@@ -4,7 +4,7 @@
 //! with transparent text lies over them and takes the typing. Both lay out the same text in the
 //! same font at the same width, so the caret and selection land on the drawn glyphs.
 
-use rune::{Color, El, Key, KeyEvent, ScrollSpec, Span, TextEdit, TextStyle, Tx, col, el, rich, row, text, text_input};
+use rune::{Color, El, Key, KeyEvent, ScrollSpec, Span, TextEdit, TextStyle, Tx, col, el, icon, rich, row, text, text_input};
 
 use super::widgets::label;
 use super::{V, outline, preview, sidebar};
@@ -43,7 +43,8 @@ pub fn body(v: V) -> El {
         sheet = sheet.border_sides([top, 0.0, 0.0, side], p.line).border_layout();
     }
     let mut area = col().key("doc-area").grow(1.0).min_w(0.0).min_h(0.0).h_full();
-    if v.has_doc() && !focus && v.s.mode == Mode::Source && v.s.settings().toolbar {
+    let locked = v.s.active.as_deref().is_some_and(|a| v.s.note_locked(a));
+    if v.has_doc() && !focus && v.s.mode == Mode::Source && v.s.settings().toolbar && !locked {
         area = area.child(toolbar(v));
     }
     let mut inner = row().key("sheet-row").grow(1.0).min_h(0.0).w_full().child(area.child(doc_scroll(v)));
@@ -108,7 +109,14 @@ fn doc_scroll(v: V) -> El {
         if !focus {
             column = column.child(crumb(v));
         }
-        column = column.child(if s.mode == Mode::Source { source(v) } else { preview::preview(v) });
+        let locked = s.active.as_deref().is_some_and(|a| s.note_locked(a));
+        column = column.child(if locked {
+            super::lock::panel(v)
+        } else if s.mode == Mode::Source {
+            source(v)
+        } else {
+            preview::preview(v)
+        });
         content = content.child(column);
     } else if s.files().is_empty() {
         content = content.min_h(v.vh - 42.0 - 1.0).justify_center().padding(40.0).child(empty_vault(v));
@@ -118,6 +126,27 @@ fn doc_scroll(v: V) -> El {
     // A scroll viewport is a column: in a row its content would stretch to the viewport's
     // height and leave nothing to scroll.
     col().key("doc-scroll").grow(1.0).min_w(0.0).min_h(0.0).w_full().scroll(ScrollSpec { stick_bottom: false }).child(content)
+}
+
+/// The toolbar's lock: a plain note gets a password, and an unlocked note locks again. The
+/// accent marks a note that is locked and open now.
+fn lock_button(v: V) -> El {
+    use super::widgets::LOCK;
+    let p = v.p;
+    let open = v.s.active.as_deref().is_some_and(|a| v.s.note_unlocked(a));
+    let help = if open { "Lock now. The note needs its password again." } else { "Lock with a password" };
+    row()
+        .key("fmt-lock")
+        .size(28.0, 28.0)
+        .center()
+        .radius(6.0)
+        .hover(p.hover)
+        .hover_group()
+        .role("button")
+        .label(help)
+        .help(help)
+        .on_press_tx(|s: &mut App, tx| s.ask_lock(tx))
+        .child(icon(&LOCK, 16.0).color(if open { p.acc } else { p.mute }).group_color(if open { p.acc } else { p.ink }))
 }
 
 /// The formatting toolbar: a row over the note, lined up with its text column. The ink of the
@@ -153,7 +182,9 @@ fn toolbar(v: V) -> El {
         .child(btn("fmt-quote", &QUOTE, "Quote".into(), Fmt::Quote))
         .child(btn("fmt-code", &CODE, "Code".into(), Fmt::Code))
         .child(sep("sep-3"))
-        .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)));
+        .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)))
+        .child(sep("sep-4"))
+        .child(lock_button(v));
     if s.settings().width == "readable" {
         r = r.max_w(s.settings().size as f32 * 0.6 * 72.0 + 2.0 * pad_x);
     }

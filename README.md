@@ -13,12 +13,13 @@ Each note is a <code>.md</code> file on your disk, so any other app can open it.
 <p align="center">
   <a href="https://bjarneo.github.io/quire/">Website</a> ·
   <a href="#install">Install</a> ·
+  <a href="#sync-your-devices">Sync</a> ·
   <a href="#use-it-with-your-ai-tools">MCP server</a> ·
   <a href="site/assets/quire.mp4">Video</a>
 </p>
 
 <p align="center">
-  <a href="site/assets/quire.mp4"><img src="site/assets/quire.gif" width="960" alt="A short recording of Quire: a new note with links and tags, the preview, a drag into a folder, the quick switcher, focus mode, the dark theme and the MCP settings."></a>
+  <a href="site/assets/quire.mp4"><img src="site/assets/quire.gif" width="960" alt="A short recording of Quire. It shows a new note with a link and a tag, bold text and a list from the toolbar, and an image in the preview. Then it shows the quick switcher, focus mode, a dark theme, the sync settings and a locked note."></a>
 </p>
 
 ## What you get
@@ -27,17 +28,19 @@ Quire opens a folder and edits the Markdown files in it. There is no database, n
 
 - **Write in Markdown.** Source mode highlights the syntax as you type, in a monospaced font. `Ctrl+E` switches to a preview that reads like a printed page.
 - **Format with a click.** A toolbar above the note makes text bold, italic or struck through, adds headings, links, lists, tasks, quotes and code, and inserts images. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` work too. Settings, Editor can hide it.
-- **Add images.** Drag an image onto a note, paste one, or use the image button in the title bar. Quire copies it into `attachments/` and links it. The preview shows `![alt](path)` and `![[name.png]]` images, and web images too.
+- **Lock a note.** The lock button in the toolbar encrypts a note with its own password. A locked note shows nothing until you enter the password, and it syncs encrypted.
+- **Add images.** Drag an image onto a note, paste one, or use the image button in the toolbar. Quire copies it into `attachments/` and links it. The preview shows `![alt](path)` and `![[name.png]]` images, and web images too.
 - **Link notes.** Write `[[Note name]]` and `Ctrl`-click to follow it. A link to a missing note creates the note. Renaming a note rewrites the links to it.
 - **Find anything.** `Ctrl+O` opens any note by a fuzzy name. `Ctrl+P` runs any command. `Ctrl+Shift+F` searches every note. Tags (`#idea`) get their own list.
 - **Keep folders tidy.** Make folders in the file tree, drag notes into them, and use the `+` on a folder to make a note there. To delete a folder, right-click it. The folder moves to `.trash` with its files. In the quick switcher, `Drafts/Idea` makes the note in `Drafts`.
-- **Focus.** `Ctrl+.` hides everything but the text, dims the other paragraphs and keeps the line you type near the middle.
+- **Sync your devices.** Keep a notes folder the same on your computers and your phone, through object storage that you control, with optional encryption.
+- **Focus.** `Ctrl+.` or the focus button hides everything but the text, dims the other paragraphs and keeps the line you type near the middle.
 - **Look at home.** Pick a theme for light mode and one for dark mode from 14 themes, such as White, Black, Nord, Gruvbox, Catppuccin, Tokyo Night, Rosé Pine and Solarized. Pick an accent colour, or type any hex value. "Match system" switches between your two themes. On Omarchy, your Omarchy theme is one of the choices.
 - **Work with AI tools.** A built-in MCP server lets Claude Desktop, Cursor and other MCP clients read and search your notes.
 
 <table>
   <tr>
-    <td><img src="site/assets/editor-light.png" alt="Source mode, light theme, with the file tree, the note and the outline."></td>
+    <td><img src="site/assets/editor-light.png" alt="Source mode in the light theme, with the file tree, the formatting toolbar, the note and the outline."></td>
     <td><img src="site/assets/preview-dark.png" alt="Preview mode in the dark theme."></td>
   </tr>
   <tr>
@@ -59,9 +62,9 @@ Quire opens a folder and edits the Markdown files in it. There is no database, n
 The Android app is the same editor for a phone: one pane, a drawer for the files, and tabs for open notes.
 
 <p align="center">
-  <img src="site/assets/phone-editor.png" width="250" alt="Quire on Android with a note in source mode.">
-  <img src="site/assets/phone-preview.png" width="250" alt="Quire on Android with a note in preview.">
-  <img src="site/assets/phone-switcher.png" width="250" alt="The quick switcher on Android.">
+  <img src="site/assets/phone-editor.png" width="250" alt="Quire on Android with a note in source mode and the Markdown toolbar above the keyboard.">
+  <img src="site/assets/phone-preview.png" width="250" alt="Quire on Android with a note in preview that shows an image.">
+  <img src="site/assets/phone-switcher.png" width="250" alt="The quick switcher on Android, with the notes that match a search.">
 </p>
 
 ## Install
@@ -140,6 +143,8 @@ Each notes folder syncs to its own remote folder, `quire/<folder name>/` unless 
 ## Not in this version
 
 - With "Ask before changes" on, MCP tools that write return an error, because there is no approval prompt yet.
+- The macOS and Windows builds come from CI and are not tested on those systems yet.
+- On Android, a paste from the context menu inserts no image, and SVG images do not show in the preview.
 
 ## In this repository
 

@@ -276,6 +276,12 @@ impl App {
             };
             let text = pl.text;
             self.writer.send(Op::Write { root: root.clone(), rel: path.clone(), text: text.clone() });
+            // An unlocked note opens the new sealed text with its key, or locks again.
+            if self.unlocked.contains_key(&path) {
+                self.outside_locked_text(&path, text);
+                any = true;
+                continue;
+            }
             if let Some(e) = self.edits.get_mut(&path) {
                 let (a, b) = (e.anchor.min(text.len()), e.focus.min(text.len()));
                 e.replace_text(text.clone());

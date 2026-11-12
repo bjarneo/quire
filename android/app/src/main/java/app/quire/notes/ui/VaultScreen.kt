@@ -167,6 +167,7 @@ fun VaultScreen(vm: QuireViewModel) {
             }
         }
         if (vm.outlineOpen && vm.active != null) OutlineSheet(vm)
+        if (vm.lockDialog && vm.active != null) LockDialog(vm)
     }
 }
 
@@ -175,6 +176,8 @@ private fun EditorArea(vm: QuireViewModel, screenH: Dp) {
     val c = LocalQ.current
     val active = vm.active
     when {
+        // A locked note shows the lock panel in place of the editor and the preview.
+        active != null && vm.noteLocked(active) -> key(active) { LockPanel(vm) }
         active != null && vm.mode == Mode.Source -> key(vm.docKey) { SourceEditor(vm, screenH) }
         active != null -> key(vm.docKey) { PreviewPane(vm, screenH) }
         vm.files.isEmpty() -> EmptyVault(vm)
@@ -603,15 +606,19 @@ private fun MarkdownBar(vm: QuireViewModel) {
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val unlocked = vm.active?.let { it in vm.unlocked } == true
         vm.toolbar.forEach { a ->
             val label = toolLabel(a)
+            // The Lock button shows as active while the note is unlocked. A tap locks it again.
+            val on = a == "lock" && unlocked
             Box(
                 Modifier
                     .size(42.dp, 38.dp)
+                    .background(if (on) c.act else Color.Transparent, RoundedCornerShape(6.dp))
                     .tap(RoundedCornerShape(6.dp)) { vm.format(a) }
                     .semantics { contentDescription = label },
                 contentAlignment = Alignment.Center,
-            ) { ToolGlyph(a, c) }
+            ) { ToolGlyph(a, c, on) }
         }
     }
 }
@@ -628,11 +635,12 @@ private fun toolLabel(a: String) = when (a) {
     "task" -> "Task"
     "quote" -> "Quote"
     "code" -> "Code"
+    "lock" -> "Lock"
     else -> "Image"
 }
 
 @Composable
-private fun ToolGlyph(a: String, c: QColors) {
+private fun ToolGlyph(a: String, c: QColors, on: Boolean = false) {
     val ink = c.ink2
     when (a) {
         "bold" -> Txt("B", 16.sp, ink, weight = FontWeight.W700)
@@ -646,6 +654,7 @@ private fun ToolGlyph(a: String, c: QColors) {
         "task" -> QIcon(QIcons.TASK, 16f, 16.dp, 1.3f, ink)
         "quote" -> QIcon(QIcons.QUOTE, 16f, 16.dp, 1.3f, ink)
         "code" -> QIcon(QIcons.CODE, 16f, 16.dp, 1.3f, ink)
+        "lock" -> QIcon(QIcons.LOCK, 16f, 16.dp, 1.3f, lockColor(c, on))
         else -> QIcon(QIcons.IMAGE, 16f, 16.dp, 1.25f, ink)
     }
 }

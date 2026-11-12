@@ -198,6 +198,9 @@ impl App {
                 }
             }
         }
+        if let Some(u) = self.unlocked.remove(from) {
+            self.unlocked.insert(to.clone(), u);
+        }
         if let Some(e) = self.edits.remove(from) {
             self.edits.insert(to.clone(), e);
         }
@@ -313,6 +316,7 @@ impl App {
             self.edits.remove(p);
         }
         self.recent.retain(|p| !inside(p));
+        self.unlocked.retain(|p, _| !inside(p));
         self.expanded.retain(|p| !inside(p));
         if self.new_folder.as_ref().is_some_and(|nf| inside(&nf.parent)) {
             self.new_folder = None;

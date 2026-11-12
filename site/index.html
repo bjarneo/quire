@@ -96,7 +96,7 @@
         <div class="shot shot--hero">
           <picture data-themed>
             <source media="(prefers-color-scheme: dark)" srcset="assets/editor-dark.png">
-            <img src="assets/editor-light.png" width="1280" height="800" fetchpriority="high" alt="The Quire desktop app with a note open in source mode. The file tree is on the left, the highlighted Markdown text is in the middle, and the outline and backlinks are on the right.">
+            <img src="assets/editor-light.png" width="1280" height="800" fetchpriority="high" alt="The Quire desktop app with a note open in source mode. The file tree is on the left. The formatting toolbar is above the highlighted Markdown text. The outline and backlinks are on the right.">
           </picture>
         </div>
       </div>
@@ -108,11 +108,11 @@
       <div class="head">
         <h2 id="watch-title"><span class="md" aria-hidden="true">##</span>See it work</h2>
         <div class="prose">
-          <p>Twenty-eight seconds in the desktop app: a new note, links and tags, the preview, a drag into a folder, the quick switcher, focus mode, the dark theme and the MCP server.</p>
+          <p>This recording shows 38 seconds of the desktop app. You see a new note with a link and a tag, bold text and a list from the toolbar, and an image in the preview. Then come the quick switcher, focus mode, a dark theme, the sync settings and a locked note.</p>
         </div>
       </div>
       <div class="shot shot--video">
-        <video data-promo src="assets/quire.mp4" poster="assets/quire-poster.png" width="1280" height="800" muted loop playsinline controls preload="metadata" aria-label="A 28 second recording of the Quire desktop app."></video>
+        <video data-promo src="assets/quire.mp4" poster="assets/quire-poster.png" width="1280" height="800" muted loop playsinline controls preload="metadata" aria-label="A 38 second recording of the Quire desktop app."></video>
       </div>
     </div>
   </section>
@@ -152,7 +152,7 @@
         <div class="prose">
           <p>Source mode shows your Markdown with live highlighting in a monospaced font. The syntax stays in view, so the screen always matches the file.</p>
           <p>Preview renders the note like a page, in a serif or a sans typeface. Press <kbd>Ctrl+E</kbd> to switch between the two.</p>
-          <p>A toolbar above the note adds bold, italics, headings, links, lists, tasks, quotes, code and images. <kbd>Ctrl+B</kbd>, <kbd>Ctrl+I</kbd> and <kbd>Ctrl+K</kbd> work too.</p>
+          <p>A toolbar above the note adds bold, italics, headings, links, lists, tasks, quotes, code and images. <kbd>Ctrl+B</kbd>, <kbd>Ctrl+I</kbd> and <kbd>Ctrl+K</kbd> work too. The lock button at the end of the toolbar locks a note with its own password.</p>
           <p>Images show in the preview. Drag an image onto a note, paste one, or pick one with the image button. Quire copies it into the <code>attachments</code> folder and links it.</p>
           <ul class="ticks">
             <li>Task lists have checkboxes that you can tick in preview.</li>
@@ -166,6 +166,7 @@
           <div class="seg" role="group" aria-label="Screenshot of the editor">
             <button type="button" data-view="source" aria-pressed="false">source</button>
             <button type="button" data-view="preview" aria-pressed="true">preview</button>
+            <button type="button" data-view="image" aria-pressed="false">image</button>
           </div>
         </div>
         <div class="shot stack">
@@ -175,8 +176,9 @@
           </picture>
           <picture data-themed data-panel="source" class="zoom is-off" style="--z-sm: 1.6; --at-sm: 52% 13%">
             <source media="(prefers-color-scheme: dark)" srcset="assets/editor-dark.png">
-            <img src="assets/editor-light.png" width="1280" height="800" loading="lazy" decoding="async" alt="The same note in source mode. Heading marks, bold markers and list numbers show in colour next to the text.">
+            <img src="assets/editor-light.png" width="1280" height="800" loading="lazy" decoding="async" alt="The same note in source mode, under the formatting toolbar. Heading marks, bold markers and list numbers show in colour next to the text.">
           </picture>
+          <img data-panel="image" class="zoom is-off" style="--z-sm: 1.6; --at-sm: 52% 13%" src="assets/preview-image.png" width="1280" height="800" loading="lazy" decoding="async" alt="The Garden plan note in preview. A drawing of the three spring beds shows under the Spring beds heading, above the list of beds.">
         </div>
         <figcaption><kbd>Ctrl+E</kbd> switches the open note between source and preview.</figcaption>
       </figure>
@@ -276,7 +278,7 @@
       </div>
       <figure class="figure">
         <div class="shot">
-          <img class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-appearance.png" width="1280" height="800" loading="lazy" decoding="async" alt="Appearance settings. The mode switch shows Light, Dark and Match system. Below it, cards show the five light themes, with Paper selected.">
+          <img class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-appearance.png" width="1280" height="800" loading="lazy" decoding="async" alt="Appearance settings. The mode switch shows Light, Dark and Match system. Below it, cards show the six light themes with Paper selected, and the first dark themes.">
         </div>
         <figcaption>Appearance settings. Open them with <kbd>Ctrl+,</kbd>.</figcaption>
       </figure>
@@ -396,7 +398,7 @@
           </div>
           <div class="shot stack">
             <img data-panel="backend" class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-sync.png" width="1280" height="800" loading="lazy" decoding="async" alt="Sync settings with a grid of storage backends. Hetzner is selected. The region, bucket and remote folder fields for Hetzner are below the grid.">
-            <img data-panel="options" class="zoom is-off" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 57.5%" src="assets/settings-sync-2.png" width="1280" height="800" loading="lazy" decoding="async" alt="The lower part of the sync settings. It shows the access keys, the endpoint, the When to sync choice, Encrypt before upload with a passphrase, and the Test connection and Sync now buttons. The status is Connected. Last synced 2m ago.">
+            <img data-panel="options" class="zoom is-off" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 57.5%" src="assets/settings-sync-2.png" width="1280" height="800" loading="lazy" decoding="async" alt="The lower part of the sync settings. It shows the access keys, the endpoint, the When to sync choice and Encrypt before upload with a passphrase. Below them are the Test connection and Sync now buttons. The status is Connected. Last synced 2m ago.">
           </div>
           <figcaption>Sync settings. Open settings with <kbd>Ctrl+,</kbd> and select Sync &amp; backup.</figcaption>
         </figure>
@@ -446,15 +448,15 @@
       </div>
       <div class="phones">
         <figure class="phone">
-          <img src="assets/phone-editor.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with a note open in source mode.">
+          <img src="assets/phone-editor.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with a note in source mode and the Markdown toolbar above the keyboard.">
           <figcaption>Source</figcaption>
         </figure>
         <figure class="phone">
-          <img src="assets/phone-preview.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with a note open in preview.">
+          <img src="assets/phone-preview.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with the Garden plan note in preview. The note shows an image of the garden beds.">
           <figcaption>Preview</figcaption>
         </figure>
         <figure class="phone">
-          <img src="assets/phone-switcher.png" width="1080" height="2400" loading="lazy" decoding="async" alt="The quick switcher of Quire on an Android phone.">
+          <img src="assets/phone-switcher.png" width="1080" height="2400" loading="lazy" decoding="async" alt="The quick switcher of Quire on an Android phone, with the notes that match the search ea.">
           <figcaption>Quick switcher</figcaption>
         </figure>
       </div>
@@ -467,11 +469,11 @@
       <div class="download-grid">
         <div class="platforms">
           <div class="platform">
-            <h3>Linux</h3>
-            <p>A native desktop app. It draws its interface on the GPU and is written in Rust with the Rune GUI framework.</p>
+            <h3>Desktop</h3>
+            <p>A native desktop app for Linux, macOS on Apple silicon and Windows. It draws its interface on the GPU and is written in Rust with the Rune GUI framework. The macOS and Windows builds are not tested on those systems yet.</p>
             <a class="btn btn--primary" href="#download" data-repo-path="/releases/latest">
               <svg class="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>Download for Linux</span>
+              <span>Download for desktop</span>
             </a>
           </div>
           <div class="platform">
@@ -482,7 +484,7 @@
               <span>Download the APK</span>
             </a>
           </div>
-          <p class="aside">Both links go to the latest release on GitHub. There are no builds for Windows, macOS or iOS yet.</p>
+          <p class="aside">Both links go to the latest release on GitHub. There is no iOS app yet.</p>
         </div>
         <div class="first-steps">
           <figure class="figure">

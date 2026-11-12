@@ -34,6 +34,8 @@ svg!(BULLETS, 16.0, r#"<circle cx="3.2" cy="4" r="1" fill="currentColor"/><circl
 svg!(NUMBERS, 16.0, r#"<path d="M2.5 2.9l1-.6v3.4M2.2 7.5c.2-.5.6-.8 1.1-.8.6 0 1 .4 1 .9 0 .8-2.1 1.5-2.1 2.4h2.2M6.6 4h7.2M6.6 8h7.2M6.6 12h7.2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>"#);
 svg!(TASK, 16.0, r#"<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.3 8.2l1.9 1.9 3.6-4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#);
 svg!(QUOTE, 16.0, r#"<path d="M3.2 3v10M6.4 4.6h7M6.4 8h7M6.4 11.4h4.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>"#);
+// A padlock: lock a note with a password.
+svg!(LOCK, 16.0, r#"<rect x="3.4" y="7" width="9.2" height="6.6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>"#);
 // A picture with a hill and a sun: insert an image.
 svg!(IMAGE, 16.0, r#"<rect x="2" y="3" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="6.2" r="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.6 11.6l3.6-3.7 2.6 2.6 1.6-1.5 3 2.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/>"#);
 // Four corners of a frame: focus mode.

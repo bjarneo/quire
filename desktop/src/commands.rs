@@ -59,6 +59,14 @@ pub fn commands(s: &App, dark: bool) -> Vec<Cmd> {
     if s.active.is_some() {
         v.push(cmd("Insert image…", &["Mod", "Shift", "I"], |s, tx| s.pick_image(tx)));
     }
+    if let Some(a) = s.active.as_deref() {
+        if s.note_unlocked(a) {
+            v.push(cmd("Lock note now", &[], |s, _| s.relock()));
+            v.push(cmd("Remove password", &[], |s, tx| s.remove_password(tx)));
+        } else if !s.note_locked(a) {
+            v.push(cmd("Lock note with a password…", &[], |s, tx| s.ask_lock(tx)));
+        }
+    }
     v.push(cmd("Open settings", &["Mod", ","], |s, _| s.open_settings()));
     if !cfg!(target_os = "macos") {
         v.push(cmd("Quit", &["Mod", "Q"], |s, tx| s.quit(tx)));

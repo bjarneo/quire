@@ -1,6 +1,8 @@
 # Quire for Android
 
-Quire is a plain editor for folders of Markdown notes. This is the Android app. It uses Kotlin and Jetpack Compose.
+Quire is a plain editor for folders of Markdown notes. This is the Android app, in Kotlin with Jetpack Compose. It runs on Android 8.0 and later.
+
+The app is the same editor as the desktop app, made for a phone: one pane, a drawer for the files, and tabs for open notes. It reads and writes the same sync format, so a notes folder can be the same on the phone and on the computer.
 
 ## Requirements
 
@@ -14,7 +16,7 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 
 The Gradle wrapper downloads Gradle 9.9.1 on the first build.
 
-## Build
+## Build and test
 
 To build the debug APK, run this command:
 
@@ -23,6 +25,35 @@ To build the debug APK, run this command:
 ```
 
 The APK is `app/build/outputs/apk/debug/app-debug.apk`.
+
+To run the unit tests, run this command:
+
+```sh
+./gradlew testDebugUnitTest
+```
+
+The tests run on the JVM, with no device. They cover the sync engine, the encryption test values in [`../SYNC.md`](../SYNC.md), an S3 round trip against a local test server, the image rules, the toolbar rules, the themes and the folder delete.
+
+## Release build
+
+The release build is signed with a key from Gradle properties, so no key or password is in this repository. Put these lines in `~/.gradle/gradle.properties`, with your own values:
+
+```properties
+QUIRE_RELEASE_STORE_FILE=/path/to/release.jks
+QUIRE_RELEASE_STORE_PASSWORD=...
+QUIRE_RELEASE_KEY_ALIAS=...
+QUIRE_RELEASE_KEY_PASSWORD=...
+```
+
+Then run this command:
+
+```sh
+./gradlew assembleRelease
+```
+
+The APK is `app/build/outputs/apk/release/app-release.apk`. Without the properties, the build makes an unsigned APK, `app-release-unsigned.apk`, which Android does not install.
+
+A release APK cannot update a debug install, because their signatures differ. To change from one to the other, uninstall the app first. An uninstall deletes the notes in the app storage, so move them to a folder outside the app first.
 
 ## Install
 
@@ -45,15 +76,45 @@ adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
 - "Open a folder…" uses the system folder picker. Quire keeps the permission, so the folder opens again after a restart. Use it for a folder that another app syncs.
 - On the first start, Quire writes the sample folder "Field Notes". Settings > Files & links > Restore puts it back.
 
-To make a folder, use "New folder" in the drawer or in the command palette. Long-press a folder to add a note or a folder inside it. The "+" at the end of a folder row adds a note there.
-
-To move a note, long-press it in the drawer and drag it onto a folder. Drop it on the folder name at the top to move it to the root. You can also long-press a note and pick "Move to…". In the quick switcher, type a path such as `Drafts/Idea` to create a note in that folder.
-
 Quire saves an edit 500 ms after you stop typing, and again when the app goes to the background. It reads the folder again when the app comes back, so edits from other apps show up.
 
-## Sync settings
+## Folders
 
-The Sync & backup section stores the provider settings. Credentials and the passphrase are encrypted with a key in the Android Keystore. Quire does not sync yet. "Test connection" checks the required fields only.
+- To make a folder, use "New folder" in the drawer or in the command palette.
+- To add a note or a folder inside a folder, long-press the folder. The "+" at the end of a folder row adds a note there.
+- To delete a folder, long-press it and select "Delete folder". A folder with notes asks first. The folder moves to `.trash` with every file in it.
+- To move a note, long-press it in the drawer and drag it onto a folder. Drop it on the folder name at the top to move it to the root. You can also long-press a note and select "Move to…".
+- In the quick switcher, type a path such as `Drafts/Idea` to create a note in that folder.
+
+## Writing
+
+- While the editor has focus, a toolbar above the keyboard makes text bold, italic or struck through, and adds headings, links, note links, lists, tasks, quotes, code and images. It scrolls sideways when it does not fit. The rules are the same as on the desktop.
+- The image button opens the photo picker. Quire copies the image into `attachments/` in the notes folder and links it at the caret. An image that another app drops on the editor goes in the same way.
+- The preview shows `![alt](path)` images relative to the note, `![[name.png]]` images from anywhere in the folder, and `https://` images.
+
+## Themes
+
+Settings > Appearance has 14 themes: 6 for light mode and 8 for dark mode. Pick one for each mode. "Match system" follows the dark setting of the phone. Pick an accent colour from 9 swatches, or type a `#rrggbb` value.
+
+## Sync
+
+Settings > Sync & backup connects the notes folder to object storage that you control: Amazon S3, Hetzner, Azure, Google Cloud, Cloudflare R2, Backblaze B2, DigitalOcean, Wasabi, Scaleway, OVHcloud or another S3-compatible server.
+
+1. Select the provider and fill in the bucket and the keys.
+2. Select **Test connection**. Sync starts when the test passes.
+
+Quire syncs when the folder opens, when the app comes to the front or goes to the background, after a save, every 5 minutes, or only on **Sync now**, as you choose in **When to sync**.
+
+- Each notes folder has its own **Remote folder**, `quire/<folder name>/` by default. To sync a folder with the desktop app, give it the same remote folder on both devices.
+- Credentials and the passphrase are encrypted with a key in the Android Keystore.
+- The device name in conflict copies is the phone model, for example `SM-S931B`.
+
+See [`../SYNC.md`](../SYNC.md) for the format.
+
+## Not in this version
+
+- A paste from the context menu inserts no image. The Compose text field gives no clipboard images. Only `Ctrl+V` on a hardware keyboard pastes copied image files.
+- SVG images do not show in the preview, because Android has no built-in SVG decoder. AVIF images show on Android 12 and later.
 
 ## Fonts
 

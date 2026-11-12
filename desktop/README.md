@@ -22,28 +22,48 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 
 ## What it does
 
+### Writing
+
 - Edits the `.md` files of a folder. Saves each note half a second after you stop typing, and on quit.
 - Shows source with live Markdown highlighting, or a rendered preview (`Ctrl+E`).
-- Has a formatting toolbar above the note in source mode: bold, italic, strikethrough, heading, link, note link, lists, task, quote, code and image. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` do the same as the first buttons. Settings, Editor, **Formatting toolbar** hides it.
-- Shows images in the preview: `![alt](path)` relative to the note, `![[name.png]]` anywhere in the folder, and `https://` images.
-- Adds an image when you drop it on a note, paste it, or pick it with the image button (`Ctrl+Shift+I`). Images from outside the folder are copied into `attachments/`. On Wayland, file drops come from a small addition to Rune's winit in `vendor/winit`.
+- Has a formatting toolbar above the note in source mode: bold, italic, strikethrough, heading, link, note link, lists, task, quote, code and image. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` do the same as the first buttons. Turn off Settings, Editor, **Formatting toolbar** to hide it.
+- Hides everything but the text in focus mode. Use `Ctrl+.` or the focus button in the title bar.
+- Locks a note with its own password: use the lock button at the end of the toolbar, or "Lock note with a password…" in the command palette. Quire encrypts the note with AES-256-GCM and a key from the password. The file on disk, search, the link index and sync see only the encrypted text. To read the note, enter the password. Each save encrypts the note again. The note locks again when you close its tab or select the lock button. "Remove password" in the command palette saves it as plain text again. If you forget the password, nobody can open the note. `../SYNC.md` describes the format.
+
+### Images
+
+- Shows images in the preview: `![alt](path)` relative to the note, `![[name.png]]` anywhere in the folder, and `https://` images. PNG, JPEG, GIF, WebP, BMP, SVG and AVIF work.
+- Adds an image when you drop it on a note, paste it, or pick it with the image button in the toolbar (`Ctrl+Shift+I`). Images from outside the folder are copied into `attachments/`. A pasted screenshot is saved as `attachments/Pasted image <date> <time>.png`.
+- Takes file drops on Wayland too. Rune's winit gets no file drops from Wayland, so `vendor/winit` adds them. See `vendor/winit/src/platform_impl/linux/wayland/dnd.rs`.
+
+### Links and search
+
 - Links notes with `[[Note name]]`. `Ctrl`-click a link to follow it. A link to a missing note creates the note.
+- Rewrites links in other notes when you rename a note.
 - Finds tags (`#tag`), searches every note (`Ctrl+Shift+F`), and lists headings and backlinks.
 - Opens any note with the quick switcher (`Ctrl+O`) and runs any command from the palette (`Ctrl+P`).
-- Hides everything but the text in focus mode (`Ctrl+.`).
-- Rewrites links in other notes when you rename a note.
+
+### Folders
+
 - Makes folders: use the folder button next to the panel tabs, "New folder" in the command palette, or right-click a folder.
 - Creates a note inside a folder: use the `+` on the folder's row, right-click the folder, or type `Folder/Name` in the quick switcher. A path creates the folders it names.
 - Moves a note into a folder when you drag it onto the folder. Drop it on the folder name or on empty space to move it to the root. Links that spell out the old folder follow the note.
 - Moves deleted notes to `.trash` inside the folder.
 - Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
-- On macOS the shortcuts use `⌘` in place of `Ctrl`.
+
+### Look
+
 - Has 14 themes in Settings, Appearance: 6 for light mode and 8 for dark mode. You pick one for each mode, and "Match system" switches between them.
 - Lets you pick the accent colour from 9 swatches, or type a `#rrggbb` value. An accent that is too dark to read on a dark theme gets lighter for text.
 - On Omarchy, offers the current Omarchy theme in both lists and follows theme switches while Quire runs. Without a pick, "Match system" uses the Omarchy theme.
 
-On first launch Quire writes a sample folder, Field Notes, to `~/Documents/Field Notes`. If that folder already exists, the sample goes to Quire's data folder instead. Settings and open tabs live in `~/.config/quire/state.json`, never in a notes folder.
+### Window
+
+- On Linux, the title bar has no window buttons. The window manager closes and places the window. To quit, press `Ctrl+Q` or use **Quit** in the command palette.
+- On macOS the shortcuts use `⌘` in place of `Ctrl`.
+
+On first launch Quire writes a sample folder, Field Notes, to `~/Documents/Field Notes`. If that folder already exists, the sample goes to Quire's data folder instead. Settings and open tabs live in `state.json` in Quire's config folder, `~/.config/quire/` on Linux, never in a notes folder.
 
 ## MCP server
 
@@ -63,22 +83,34 @@ Access is read-only by default. Each tool has its own switch, and hidden folders
 
 Settings, Sync & backup connects a notes folder to a bucket. **Test connection** reads the remote folder and reports what it holds. After it passes, Quire syncs when the folder opens, after you save, every 5 minutes, or only when you select **Sync now**, as you choose. The status bar shows the last sync. Select it to open the sync settings.
 
-Each notes folder has its own **Remote folder**. Without a value, it is `quire/<folder name>/`. A request that the service does not answer in time is tried again up to 4 times, and transfers run 8 at a time.
+- Each notes folder has its own **Remote folder**. Without a value, it is `quire/<folder name>/`.
+- Notes, images up to 50 MB and folders sync. A file that you delete on one device moves to `.trash` on the others.
+- A request that the service does not answer in time is tried again up to 4 times. Transfers run 8 at a time.
 
-Quire keeps a record of the last sync for each folder and bucket in `~/.config/quire/sync/`. The record lets Quire tell an edit from a delete. See [`../SYNC.md`](../SYNC.md) for the format.
+Quire keeps a record of the last sync for each folder and bucket in `sync/` in its config folder. The record lets Quire tell an edit from a delete. See [`../SYNC.md`](../SYNC.md) for the format.
 
 ## Not in this version
 
 - Very long notes type slower. A keystroke takes about 2.5 ms at 400 lines and 6 ms at 1,000 lines, but about 30 ms at 3,000 lines, because the text field lays out the whole note on each edit.
-
-- The passphrase and keys you enter are saved in `~/.config/quire/state.json`, which only your user can read. They are not in the system keychain.
+- The passphrase and keys you enter are saved in `state.json`, which only your user can read. They are not in the system keychain.
+- The macOS and Windows builds come from CI and are not tested on those systems yet.
 
 ## Develop
 
 ```sh
-cargo test                                         # unit tests
+cargo test                                               # unit tests
 cargo run -- --snap shot.png --size 1280x800 --scale 2   # render a frame headless
-cargo run -- --snap shot.png --scene dark          # scenes: welcome, preview, dark, focus, settings
+cargo run -- --snap shot.png --scene dark                # scenes: welcome, preview, dark, focus, settings
+cargo run -- --script events.json --snap shot.png --at mark:end   # play input events, then render
 ```
 
-`QUIRE_SMOOTHING` picks another text rasterizer, for comparing renders. `ref/` holds renders of the design in Chromium, used as the reference for pixel comparisons.
+- A headless run opens the folder in `QUIRE_FOLDER`. Set `HOME`, `XDG_CONFIG_HOME` and `XDG_DATA_HOME` to an empty folder, so the run does not touch your own settings.
+- The sync tests run two devices against an S3 test server in the test process. Three more tests check a real store, and they only run when you ask for them. Each one reads the settings file in `QUIRE_LIVE_STATE`, and none of them prints a key:
+
+  ```sh
+  QUIRE_LIVE_STATE=~/.config/quire/state.json cargo test live_ -- --ignored --nocapture
+  ```
+
+  `live_store_check` also writes and deletes one small object, `.quire/probe.txt`.
+- `QUIRE_SMOOTHING` picks another text rasterizer, for comparing renders. `ref/` holds renders of the design in Chromium, used as the reference for pixel comparisons.
+- `vendor/winit` is Rune's winit with Wayland file drops added. `Cargo.toml` points the `winit` patch at it.

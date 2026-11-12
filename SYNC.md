@@ -13,6 +13,10 @@ All objects of one notes folder sit under one key prefix. The default prefix is
 `quire/<folder name>/`. You can change it in the **Remote folder** field. The prefix always ends
 in `/`, unless it is empty.
 
+Each notes folder on a device has its own prefix. Two notes folders with one prefix merge their
+notes, so an app must not use one prefix value for all its folders. To sync one notes folder
+between two devices, give it the same prefix on both.
+
 | Key under the prefix | Content |
 | --- | --- |
 | `.quire/format.json` | Plain JSON. It tells if the notes are encrypted, and holds the key salt. |
@@ -23,8 +27,8 @@ in `/`, unless it is empty.
 
 A note path is relative to the notes folder and uses `/` between folders. Notes are the files
 that end in `.md`. Images sync too: the files that end in `.png`, `.jpg`, `.jpeg`, `.gif`,
-`.webp`, `.bmp`, `.svg` or `.avif`, in any letter case, up to 50 MB each. No other file syncs. Files and folders whose names start with `.` do not sync, and neither does
-`node_modules`. Line endings are `\n`. An app converts `\r\n` to `\n` when it reads a note.
+`.webp`, `.bmp`, `.svg` or `.avif`, in any letter case, up to 50 MB each. No other file syncs.
+Files and folders whose names start with `.` do not sync, and neither does `node_modules`. Line endings are `\n`. An app converts `\r\n` to `\n` when it reads a note.
 
 ## Format file
 
@@ -64,8 +68,9 @@ writes this file. Every later device reads it first and stops with an error in t
 ```
 
 `folders` lists every folder in the notes folder, empty folders included. A manifest without
-`folders` has no folders. `time` is the upload time in milliseconds since 1970. `device` is the name of the device that
-uploaded the text. The desktop app uses the host name. The Android app uses the device model.
+`folders` has no folders. `time` is the upload time in milliseconds since 1970. `device` is the
+name of the device that uploaded the file. The desktop app uses the host name. The Android app
+uses the device model.
 
 ## Encryption
 
@@ -85,8 +90,16 @@ neither note names nor note text. The passphrase needs at least 12 characters.
 
 A device keeps a base record for each notes folder and store. The base maps each note path to
 the hash that both sides had after the last sync on this device. It also lists the folders that
-both sides had. Its JSON form is `{"files": {"<path>": "<hash>"}, "folders": ["<path>"]}`. The desktop app keeps it in `sync/`
-in its config folder, which is `~/.config/quire/sync/` on Linux. The base never goes to the store.
+both sides had. Its JSON form is:
+
+```json
+{"files": {"<path>": "<hash>"}, "folders": ["<path>"], "stamps": {"<image path>": [size, time, "<hash>"]}}
+```
+
+`stamps` is optional. It holds the size, the file time in nanoseconds and the hash of each
+image, so an image that did not change is not read again. The desktop app keeps the base in
+`sync/` in its config folder, which is `~/.config/quire/sync/` on Linux. The base never goes to
+the store.
 
 For each path in the local folder, the manifest or the base, compare the local hash `L`, the
 remote hash `R` and the base hash `B`:
@@ -107,8 +120,8 @@ Images use the same table. A manifest entry for an image looks like one for a no
 A path with a `..` part, an empty part or a part that starts with `.` is skipped, and so is a path
 that is neither a note nor an image.
 
-Then compare the folders in the same way. A folder is kept when a note is still in it after the
-note steps. Such a note stayed, came down or went up in this sync.
+Then compare the folders in the same way. A folder is kept when a note or an image is still in
+it after the file steps. Such a file stayed, came down or went up in this sync.
 
 | Local | Remote | Condition | Action |
 | --- | --- | --- | --- |
@@ -122,8 +135,13 @@ Move the deepest folders to `.trash` first. A folder moves with every file in it
 are not notes.
 
 After these steps, read the manifest again, apply the changes of this sync to it, and write it.
-The second read keeps the entries that another device wrote during the sync. Then save the new
-base. It holds each path that is in step after this sync.
+The second read keeps the entries that another device wrote during the sync.
+
+Save the new base only after the downloads, the deletes and the folder changes are on disk. It
+holds each path that is in step after this sync. If a local write fails, delete the base. A base
+that says a file is in step when the old version is still on disk makes the next sync upload
+the old version over the newer remote one. Without a base, the next sync keeps both versions of
+each file that differs.
 
 ## Conflicts
 
@@ -133,10 +151,10 @@ the same rule and keeps its extension, as in `cat (conflict laptop).png`. The de
 uploads that copy at once, so every device gets both versions. If the name is taken, the device
 adds a number: `<name> (conflict <device> 2).md`.
 
-An app must not overwrite a note that changed while a sync ran. Before it writes a downloaded
-note, it compares the current text with the hash the sync saw. If the two differ, it writes the
-download as a conflict copy. A delete from another device applies only to a note that did not
-change.
+An app must not overwrite a file that changed while a sync ran. Before it writes a downloaded
+note or image, it compares the current file with the hash the sync saw. If the two differ, it
+writes the download as a conflict copy. A delete from another device applies only to a file
+that did not change.
 
 ## Stores
 
@@ -157,8 +175,9 @@ body. A GET that returns 404 with the code `NoSuchKey` means that the object doe
 | `custom` | the `endpoint` field | the `region` field | the `addressing` field |
 | `gcs` with HMAC keys | `https://storage.googleapis.com` | `auto` | path-style |
 
-The settings fields are `bucket`, `prefix`, `accessKey`, `secretKey` and `region`. R2 also has
-`accountId`. A custom server also has `endpoint` and `addressing`, which is `path` or `vhost`.
+The provider fields are `bucket`, `accessKey`, `secretKey` and `region`. R2 also has
+`accountId`. The prefix is not a provider field: the settings keep one prefix for each notes
+folder, in `folders`. A custom server also has `endpoint` and `addressing`, which is `path` or `vhost`.
 Without a picked region, an app uses the first region that the settings list for the provider.
 
 **Google Cloud Storage with a service account key** (`gcsAuth` is `sa`):
@@ -193,13 +212,41 @@ or a URL that is not valid. Each try signs the request again. Downloads, uploads
 
 ## When a device syncs
 
-- When a notes folder opens.
-- After a save, when **When to sync** is **On save**. The sync starts 1.5 seconds after the save.
+- When a notes folder opens. On Android, also when the app comes to the front and when it goes
+  to the background.
+- After a save, a delete, a rename, a move or a new folder, when **When to sync** is **On save**.
+  The sync starts 1.5 seconds after the change.
 - Every 5 minutes, when **When to sync** is **Every 5 min**.
 - When you select **Sync now** in the settings or in the command palette.
 
 A device syncs only after **Test connection** passed with the current settings. When
 **When to sync** is **Manually**, only **Sync now** starts a sync.
+
+## Locked notes
+
+A note can have its own password, apart from the sync passphrase. A locked note is still a
+`.md` file, and it syncs like any other note. Its text is:
+
+```text
+%QUIRE-LOCKED-NOTE v1 pbkdf2-sha256 <iterations> <salt, standard base64>
+
+This note is locked with a password. Open it in Quire to read it.
+
+<the sealed text, standard base64, in lines of 76 characters>
+```
+
+1. Derive 64 bytes with PBKDF2-HMAC-SHA256 from the password as UTF-8, the salt and the
+   iteration count in the first line. Quire uses 16 random bytes of salt and 600000 iterations.
+2. Use bytes 0 to 31 as the AES-256-GCM key.
+3. The sealed text is a sealed blob, as in "Encryption": `QUIRE1`, a 12-byte nonce, then the
+   ciphertext of the note text as UTF-8 with its tag.
+
+To read the body, join every line after the notice line, without line breaks. Each save makes a
+new nonce and keeps the salt, so the file changes even when the text does not. A note whose first
+line starts with `%QUIRE-LOCKED-NOTE` and has a version other than `v1` must stay locked.
+
+An app keeps the plain text of a locked note in memory only. Search, the link index and the tag
+list skip locked notes. The password needs at least 8 characters.
 
 ## Test vectors
 
@@ -217,6 +264,17 @@ AES-GCM implementation opens both sealed blobs.
 | Sealed `# Blåbær`, base64 | `UVVJUkUxyHeerIFLzO6WIrgd6vd6nFBCHkNaN/NGe60nmwng72y4MbVhouA=` |
 | Sealed `quire`, base64 | `UVVJUkUx1R27W/XnzAUMDiCCWoIsHIQv6CJ8Dn8sKqPUlrdkcpwZ` |
 | SHA-256 of `# Plan` | `1ee55b7ae632bd99dfea4f2d791ff06b1119975e96d4f822050923e7499f44cb` |
+
+This locked note opens with the password `tiger lily` to the text `# Diary\n\nBlåbær\n`. It
+comes from `cargo test print_locked_note -- --nocapture`:
+
+```text
+%QUIRE-LOCKED-NOTE v1 pbkdf2-sha256 1000 MDEyMzQ1Njc4OWFiY2RlZg==
+
+This note is locked with a password. Open it in Quire to read it.
+
+UVVJUkUxuYsECSutmGY8MVrT44GXP+mqVNaRrkyLtnVcXqlJUQ/+AdtwaCyZUuSDFLdqVw==
+```
 
 The AWS documentation example for a GET Object request also applies to SigV4. Its signature is
 `f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41`.
