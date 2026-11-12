@@ -92,7 +92,7 @@ fn main() {
     };
     rune::App::new(spec)
         .font_smoothing(smoothing())
-        .chrome(rune::Chrome { full_size_content: true, traffic_lights: Some((14.0, 14.0)), drag_regions: true })
+        .chrome(rune::Chrome { full_size_content: true, traffic_lights: Some((14.0, 17.0)), drag_regions: true })
         .titlebar(rune::Titlebar::new(42.0))
         .on_close(|s: &mut App, _tx| s.flush_all())
         .run();

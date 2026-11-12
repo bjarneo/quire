@@ -16,7 +16,10 @@ fn bar(v: V) -> El {
     let p = v.p;
     let s = v.s;
     let left_visible = v.left_visible();
-    let mut left = row().key("left-zone").h(42.0).pl(14.0).pr(8.0).gap(10.0).center_y();
+    // The 38-point tabs sit on the bar's bottom edge, one point low, so their labels are centred
+    // 24 points down, near the middle of the 42-point bar. The icons on both sides centre on the
+    // same line.
+    let mut left = row().key("left-zone").h(42.0).pt(6.5).pl(14.0).pr(8.0).gap(10.0).center_y();
     if left_visible {
         left = left.w(248.0);
     }
@@ -30,9 +33,9 @@ fn bar(v: V) -> El {
     for p_ in s.tabs.iter().filter(|t| s.files().contains_key(*t)) {
         tabs = tabs.child(tab(v, p_));
     }
-    tabs = tabs.child(icon_button(p, "new-tab", &PLUS, 12.0, "New note").mb(4.0).ml(2.0).on_press_tx(|s: &mut App, tx| s.new_note(None, tx)));
+    tabs = tabs.child(icon_button(p, "new-tab", &PLUS, 12.0, "New note").mb(4.75).ml(2.0).on_press_tx(|s: &mut App, tx| s.new_note(None, tx)));
 
-    let mut right = row().key("right-zone").h(42.0).pl(6.0).pr(10.0).gap(6.0).center_y();
+    let mut right = row().key("right-zone").h(42.0).pt(6.5).pl(6.0).pr(10.0).gap(6.0).center_y();
     if v.has_doc() {
         // One button flips between source and preview. Its icon shows where it goes.
         let (glyph, help) = if s.mode == Mode::Source {
@@ -66,7 +69,7 @@ fn tab(v: V, path: &str) -> El {
     let key = format!("tab:{path}");
     let mut t = row()
         .key(key)
-        .h(34.0)
+        .h(38.0)
         .w(190.0)
         .shrink()
         .min_w(72.0)
