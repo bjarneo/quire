@@ -1,0 +1,456 @@
+<!doctype html>
+<!--
+  REPOSITORY URL: data-repo below holds the GitHub repository of Quire.
+  site.js builds every source and release link from this one value.
+  The Pages workflow replaces the placeholder at deploy time.
+-->
+<html lang="en" data-repo="https://github.com/bjarneo/quire">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quire · A plain editor for folders of Markdown files</title>
+<meta name="description" content="Quire edits a folder of plain Markdown files on your disk. Wiki links, tags, search, focus mode and an MCP server for AI apps. For Linux and Android.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f8f5ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1f1d1a" media="(prefers-color-scheme: dark)">
+
+<!-- SITE URL: crawlers need absolute URLs here. The Pages workflow replaces the placeholder. -->
+<link rel="canonical" href="https://bjarneo.github.io/quire/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Quire">
+<meta property="og:title" content="Quire">
+<meta property="og:description" content="A plain editor for folders of Markdown files. For Linux and Android.">
+<meta property="og:url" content="https://bjarneo.github.io/quire/">
+<meta property="og:image" content="https://bjarneo.github.io/quire/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The name Quire above a screenshot of the Quire editor with a Markdown note open.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Quire">
+<meta name="twitter:description" content="A plain editor for folders of Markdown files. For Linux and Android.">
+<meta name="twitter:image" content="https://bjarneo.github.io/quire/assets/og.png">
+<meta name="twitter:image:alt" content="The name Quire above a screenshot of the Quire editor with a Markdown note open.">
+
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script>
+  (function () {
+    var root = document.documentElement, choice = null;
+    root.classList.add('js');
+    try { choice = window.localStorage.getItem('quire-theme'); } catch (e) {}
+    if (choice === 'light' || choice === 'dark') root.setAttribute('data-theme', choice);
+  })();
+</script>
+<script src="site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="lockup lockup--header" href="#top"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><rect class="mark-back" x="38" y="10" width="46" height="60" rx="6"/><rect class="mark-mid" x="27" y="20" width="46" height="60" rx="6"/><rect class="mark-front" x="16" y="30" width="46" height="60" rx="6"/></svg><span class="wordmark">quire</span></a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#plain-files">Features</a>
+      <a href="#mcp">AI tools</a>
+      <a href="#shortcuts">Shortcuts</a>
+      <a href="#download">Download</a>
+    </nav>
+    <div class="seg seg--small theme-switch" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-choice="system" aria-pressed="true">system</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">dark</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <div class="wrap hero-text">
+      <div class="hero-name">
+        <h1 class="lockup lockup--hero" id="hero-title"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><rect class="mark-back" x="38" y="10" width="46" height="60" rx="6"/><rect class="mark-mid" x="27" y="20" width="46" height="60" rx="6"/><rect class="mark-front" x="16" y="30" width="46" height="60" rx="6"/></svg><span class="wordmark">quire</span></h1>
+        <p class="tagline">A plain editor for folders of Markdown files.</p>
+      </div>
+      <div class="hero-lede">
+        <p class="lede">Quire keeps each note as a plain <code>.md</code> file in a folder you choose. Write in source with live highlighting, read in preview, and link notes with <span class="wl"><span class="wl-b">[[</span>wiki links<span class="wl-b">]]</span></span>.</p>
+        <div class="actions">
+          <a class="btn btn--primary" href="#download">
+            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Download</span>
+          </a>
+          <a class="btn btn--quiet" href="#download" data-repo-path="">
+            <svg class="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>View source</span>
+          </a>
+        </div>
+        <p class="meta">Linux desktop and Android. Open source under the MIT licence.</p>
+      </div>
+    </div>
+    <div class="hero-stage">
+      <div class="wrap">
+        <div class="shot shot--hero">
+          <picture data-themed>
+            <source media="(prefers-color-scheme: dark)" srcset="assets/editor-dark.png">
+            <img src="assets/editor-light.png" width="1280" height="800" fetchpriority="high" alt="The Quire desktop app with a note open in source mode. The file tree is on the left, the highlighted Markdown text is in the middle, and the outline and backlinks are on the right.">
+          </picture>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="watch" aria-labelledby="watch-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="watch-title"><span class="md" aria-hidden="true">##</span>See it work</h2>
+        <div class="prose">
+          <p>Twenty-eight seconds in the desktop app: a new note, links and tags, the preview, a drag into a folder, the quick switcher, focus mode, the dark theme and the MCP server.</p>
+        </div>
+      </div>
+      <div class="shot shot--video">
+        <video data-promo src="assets/quire.mp4" poster="assets/quire-poster.png" width="1280" height="800" muted loop playsinline controls preload="metadata" aria-label="A 28 second recording of the Quire desktop app."></video>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="plain-files" aria-labelledby="plain-files-title">
+    <div class="wrap split">
+      <div class="split-main">
+        <h2 id="plain-files-title"><span class="md" aria-hidden="true">##</span>Plain files</h2>
+        <p class="statement">Your notes are Markdown files in a folder on your disk. Quire opens the folder and edits the files in place.</p>
+        <ul class="points">
+          <li><strong>Any app can open them.</strong> A text editor, <code>grep</code> or <code>git</code> sees the same files that Quire sees.</li>
+          <li><strong>No database, no lock-in.</strong> There is no import step and no export step. If you stop using Quire, your notes stay where they are.</li>
+          <li><strong>Use the folder you have.</strong> Open any folder of <code>.md</code> files, or create a new folder anywhere on your disk.</li>
+        </ul>
+      </div>
+      <figure class="tree">
+        <pre role="img" aria-label="A folder named Field Notes. It has the subfolders Drafts, Journal and Projects, each with Markdown notes, and the notes Ideas.md, Reading list.md and Welcome.md at the top level."><code><span class="dir">Field Notes/</span>
+<span class="rule">├── </span><span class="dir">Drafts/</span>
+<span class="rule">│   └── </span>On slow software<span class="ext">.md</span>
+<span class="rule">├── </span><span class="dir">Journal/</span>
+<span class="rule">│   ├── </span>2026-11-11<span class="ext">.md</span>
+<span class="rule">│   └── </span>2026-11-12<span class="ext">.md</span>
+<span class="rule">├── </span><span class="dir">Projects/</span>
+<span class="rule">│   └── </span>Garden plan<span class="ext">.md</span>
+<span class="rule">├── </span>Ideas<span class="ext">.md</span>
+<span class="rule">├── </span>Reading list<span class="ext">.md</span>
+<span class="rule">└── </span>Welcome<span class="ext">.md</span></code></pre>
+        <figcaption>A notes folder. Each note is one file, and each folder is a folder.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="editing" aria-labelledby="editing-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="editing-title"><span class="md" aria-hidden="true">##</span>Source and preview</h2>
+        <div class="prose">
+          <p>Source mode shows your Markdown with live highlighting in a monospaced font. The syntax stays in view, so the screen always matches the file.</p>
+          <p>Preview renders the note like a page, in a serif or a sans typeface. Press <kbd>Ctrl+E</kbd> to switch between the two.</p>
+          <ul class="ticks">
+            <li>Task lists have checkboxes that you can tick in preview.</li>
+            <li>Lists continue when you press <kbd>Enter</kbd>.</li>
+            <li><kbd>Ctrl+B</kbd> and <kbd>Ctrl+I</kbd> make text bold and italic.</li>
+          </ul>
+        </div>
+      </div>
+      <figure class="figure" data-switch>
+        <div class="figure-bar">
+          <div class="seg" role="group" aria-label="Screenshot of the editor">
+            <button type="button" data-view="source" aria-pressed="false">source</button>
+            <button type="button" data-view="preview" aria-pressed="true">preview</button>
+          </div>
+        </div>
+        <div class="shot stack">
+          <picture data-themed data-panel="preview" class="zoom" style="--z-sm: 1.6; --at-sm: 52% 13%">
+            <source media="(prefers-color-scheme: dark)" srcset="assets/preview-dark.png">
+            <img src="assets/preview-light.png" width="1280" height="800" loading="lazy" decoding="async" alt="A note in preview mode, set in a serif typeface with a large title, a tag and a numbered list.">
+          </picture>
+          <picture data-themed data-panel="source" class="zoom is-off" style="--z-sm: 1.6; --at-sm: 52% 13%">
+            <source media="(prefers-color-scheme: dark)" srcset="assets/editor-dark.png">
+            <img src="assets/editor-light.png" width="1280" height="800" loading="lazy" decoding="async" alt="The same note in source mode. Heading marks, bold markers and list numbers show in colour next to the text.">
+          </picture>
+        </div>
+        <figcaption><kbd>Ctrl+E</kbd> switches the open note between source and preview.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="links" aria-labelledby="links-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="links-title"><span class="md" aria-hidden="true">##</span>Links, tags and backlinks</h2>
+        <div class="prose">
+          <p>Put a note name in double square brackets to link to it, as in <span class="wl"><span class="wl-b">[[</span>Reading list<span class="wl-b">]]</span></span>. <kbd>Ctrl</kbd>-click a link to follow it. If the note does not exist yet, Quire creates it.</p>
+          <p>Add <span class="tag">#tags</span> anywhere in a note. The tags panel lists each tag with a count. Full-text search looks through every note in the folder.</p>
+          <p>The <span class="label">outline</span> shows the headings of the open note. Under it, <span class="label">linked from</span> lists the notes that link to this one.</p>
+          <p>When you rename a note, Quire rewrites the links to it in your other notes.</p>
+        </div>
+      </div>
+      <figure class="figure" data-switch>
+        <div class="figure-bar">
+          <div class="seg" role="group" aria-label="Screenshot of the sidebar">
+            <button type="button" data-view="tags" aria-pressed="true">tags</button>
+            <button type="button" data-view="search" aria-pressed="false">search</button>
+          </div>
+        </div>
+        <div class="shot stack">
+          <img data-panel="tags" class="zoom" style="--z-sm: 1.8; --at-sm: 0% 0%" src="assets/tags.png" width="1280" height="800" loading="lazy" decoding="async" alt="The tags panel in the sidebar lists each tag with a count. The outline and the linked from list are on the right.">
+          <img data-panel="search" class="zoom is-off" style="--z-sm: 1.8; --at-sm: 0% 0%" src="assets/search.png" width="1280" height="800" loading="lazy" decoding="async" alt="Search results for the word sync. Each note shows its matches in context, with the match highlighted.">
+        </div>
+        <figcaption>The sidebar has three panels: files, search and tags.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="navigation" aria-labelledby="navigation-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="navigation-title"><span class="md" aria-hidden="true">##</span>Quick switcher and command palette</h2>
+        <div class="prose">
+          <p>Press <kbd>Ctrl+O</kbd> and type a few letters of a note name. Fuzzy matching finds <q>On slow software</q> when you type <q>sl</q>.</p>
+          <p>Press <kbd>Ctrl+P</kbd> to open the command palette. It uses the same fuzzy matching and shows the shortcut next to each command that has one.</p>
+          <p>Notes open in tabs. The file tree on the left shows the folder as it is on disk.</p>
+          <p>Make folders in the file tree and drag notes into them. To create a note in a folder, use the + on the row of that folder. You can also type <code>Folder/Name</code> in the quick switcher.</p>
+        </div>
+      </div>
+      <figure class="figure" data-switch>
+        <div class="figure-bar">
+          <div class="seg" role="group" aria-label="Screenshot of the switcher">
+            <button type="button" data-view="switcher" aria-pressed="true">switcher</button>
+            <button type="button" data-view="commands" aria-pressed="false">commands</button>
+          </div>
+        </div>
+        <div class="shot stack">
+          <img data-panel="switcher" class="zoom" style="--z-sm: 2; --at-sm: 50% 15%" src="assets/quick-switcher.png" width="1280" height="800" loading="lazy" decoding="async" alt="The quick switcher with the query sl. Three notes match, and the matched letters are highlighted.">
+          <img data-panel="commands" class="zoom is-off" style="--z-sm: 1.6; --at-sm: 50% 27%" src="assets/command-palette.png" width="1280" height="800" loading="lazy" decoding="async" alt="The command palette lists commands such as New note, Show preview and Enter focus mode, each with its shortcut.">
+        </div>
+        <figcaption><kbd>Ctrl+O</kbd> opens a note. <kbd>Ctrl+P</kbd> runs a command.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section section--focus" id="focus" aria-labelledby="focus-title">
+    <div class="wrap">
+      <div class="focus-text">
+        <h2 id="focus-title"><span class="md" aria-hidden="true">##</span>Focus mode</h2>
+        <p>Press <kbd>Ctrl+.</kbd> to hide the sidebar, the tabs and every other control. Quire dims all paragraphs except the one you write in.</p>
+        <p>Typewriter scrolling keeps the line you type near the middle of the screen. Press <kbd>Ctrl+.</kbd> again to leave focus mode.</p>
+      </div>
+      <figure class="focus-figure">
+        <img src="assets/focus-mode.png" width="1280" height="800" loading="lazy" decoding="async" alt="Focus mode. Only the text of the note shows. The current line is at full strength and the other paragraphs are dimmed.">
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="themes" aria-labelledby="themes-title">
+    <div class="wrap split split--wide-figure">
+      <div class="split-main">
+        <h2 id="themes-title"><span class="md" aria-hidden="true">##</span>Themes and fonts</h2>
+        <div class="prose">
+          <p>Quire has a light theme and a dark theme. To see both, use the theme switch at the top of this page. The editor screenshots change with it.</p>
+          <p>Choose one of three monospaced fonts for the editor. Set the font size, and keep lines at a readable width or let them fill the window.</p>
+        </div>
+        <ul class="specimens" aria-label="The three editor fonts">
+          <li>
+            <span class="label">IBM Plex Mono</span>
+            <span class="specimen specimen--plex"><span class="md" aria-hidden="true">##</span> Field notes</span>
+          </li>
+          <li>
+            <span class="label">Courier Prime</span>
+            <span class="specimen specimen--courier"><span class="md" aria-hidden="true">##</span> Field notes</span>
+          </li>
+          <li>
+            <span class="label">Spline Sans Mono</span>
+            <span class="specimen specimen--spline"><span class="md" aria-hidden="true">##</span> Field notes</span>
+          </li>
+        </ul>
+      </div>
+      <figure class="figure">
+        <div class="shot">
+          <img class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-editor.png" width="1280" height="800" loading="lazy" decoding="async" alt="Editor settings with a card for each of the three editor fonts, the font size and the line width.">
+        </div>
+        <figcaption>Editor settings. Open them with <kbd>Ctrl+,</kbd>.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section band band--side" id="mcp" aria-labelledby="mcp-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="mcp-title"><span class="md" aria-hidden="true">##</span>Works with your AI tools</h2>
+        <div class="prose">
+          <p>Quire includes an MCP server. MCP is the Model Context Protocol. With it, AI apps such as Claude Desktop or Cursor can list, read and search the notes in a folder.</p>
+          <p>Access is read only by default. If you allow writes, an AI app can also create, change, rename and delete notes. A deleted note goes to the <code>.trash</code> folder inside your notes folder.</p>
+          <p>Each tool has its own switch. Hidden folders do not show up in listings or search results.</p>
+        </div>
+      </div>
+      <div class="mcp-grid">
+        <div class="config" data-switch>
+          <div class="config-bar">
+            <div class="seg" role="group" aria-label="Transport">
+              <button type="button" data-view="stdio" aria-pressed="true">stdio</button>
+              <button type="button" data-view="http" aria-pressed="false">HTTP</button>
+            </div>
+            <button type="button" class="btn btn--small" data-copy>Copy</button>
+          </div>
+          <div data-panel="stdio">
+            <p class="config-note">The AI app starts <code>quire mcp</code> itself. Put this in its MCP settings:</p>
+<pre class="code"><code>{
+  "mcpServers": {
+    "quire": {
+      "command": "quire",
+      "args": [
+        "mcp",
+        "--folder",
+        "/path/to/notes"
+      ]
+    }
+  }
+}</code></pre>
+          </div>
+          <div data-panel="http" class="is-off">
+            <p class="config-note">While Quire is open, it serves a local endpoint on <code>127.0.0.1</code>. Copy the token from the MCP settings.</p>
+<pre class="code"><code>{
+  "mcpServers": {
+    "quire": {
+      "url": "http://127.0.0.1:3917/mcp",
+      "headers": {
+        "Authorization": "Bearer &lt;token&gt;"
+      }
+    }
+  }
+}</code></pre>
+          </div>
+          <p class="tools"><span class="label">read</span> <code>list_notes</code> <code>read_note</code> <code>search_notes</code> <code>get_backlinks</code></p>
+          <p class="tools"><span class="label">write</span> <code>create_note</code> <code>update_note</code> <code>rename_note</code> <code>delete_note</code></p>
+          <p class="visually-hidden" role="status" data-copy-status></p>
+        </div>
+        <figure class="figure">
+          <div class="shot">
+            <img class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-mcp.png" width="1280" height="800" loading="lazy" decoding="async" alt="MCP settings with the server switched on, the stdio transport, read-only access and a checkbox for each tool.">
+          </div>
+          <figcaption>MCP settings: transport, access, tools and visible folders.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="shortcuts" aria-labelledby="shortcuts-title">
+    <div class="wrap split split--table">
+      <div class="split-main">
+        <h2 id="shortcuts-title"><span class="md" aria-hidden="true">##</span>Keyboard shortcuts</h2>
+        <p class="prose-p">The desktop app uses these shortcuts. Press <kbd>Ctrl+P</kbd> to find a command when you forget its keys.</p>
+      </div>
+      <table class="keys">
+        <caption class="visually-hidden">Keyboard shortcuts in Quire</caption>
+        <thead>
+          <tr><th scope="col">Action</th><th scope="col">Keys</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Quick switcher</td><td><kbd>Ctrl+O</kbd></td></tr>
+          <tr><td>Command palette</td><td><kbd>Ctrl+P</kbd></td></tr>
+          <tr><td>New note</td><td><kbd>Ctrl+N</kbd></td></tr>
+          <tr><td>Source or preview</td><td><kbd>Ctrl+E</kbd></td></tr>
+          <tr><td>Search all notes</td><td><kbd>Ctrl+Shift+F</kbd></td></tr>
+          <tr><td>Focus mode</td><td><kbd>Ctrl+.</kbd></td></tr>
+          <tr><td>Show or hide the sidebar</td><td><kbd>Ctrl+\</kbd></td></tr>
+          <tr><td>Settings</td><td><kbd>Ctrl+,</kbd></td></tr>
+          <tr><td>Bold</td><td><kbd>Ctrl+B</kbd></td></tr>
+          <tr><td>Italic</td><td><kbd>Ctrl+I</kbd></td></tr>
+          <tr><td>Follow a <span class="wl"><span class="wl-b">[[</span>link<span class="wl-b">]]</span></span></td><td><kbd>Ctrl-click</kbd></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!--
+    PHONE SCREENSHOTS: this section stays hidden while data-phone-shots="off".
+    To show it, add the three images to assets/ and change the value to "on".
+  -->
+  <section class="section" id="android" data-phone-shots="on" aria-labelledby="android-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="android-title"><span class="md" aria-hidden="true">##</span>On your phone</h2>
+        <div class="prose">
+          <p>The Android app is a phone version of the same editor, from the same design.</p>
+        </div>
+      </div>
+      <div class="phones">
+        <figure class="phone">
+          <img src="assets/phone-editor.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with a note open in source mode.">
+          <figcaption>Source</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="assets/phone-preview.png" width="1080" height="2400" loading="lazy" decoding="async" alt="Quire on an Android phone with a note open in preview.">
+          <figcaption>Preview</figcaption>
+        </figure>
+        <figure class="phone">
+          <img src="assets/phone-switcher.png" width="1080" height="2400" loading="lazy" decoding="async" alt="The quick switcher of Quire on an Android phone.">
+          <figcaption>Quick switcher</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band band--desk" id="download" aria-labelledby="download-title">
+    <div class="wrap">
+      <h2 id="download-title"><span class="md" aria-hidden="true">##</span>Download</h2>
+      <div class="download-grid">
+        <div class="platforms">
+          <div class="platform">
+            <h3>Linux</h3>
+            <p>A native desktop app. It draws its interface on the GPU and is written in Rust with the Rune GUI framework.</p>
+            <a class="btn btn--primary" href="#download" data-repo-path="/releases/latest">
+              <svg class="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download for Linux</span>
+            </a>
+          </div>
+          <div class="platform">
+            <h3>Android</h3>
+            <p>A phone version of the same app, as an APK file. It needs Android 8.0 or newer.</p>
+            <a class="btn btn--primary" href="#download" data-repo-path="/releases/latest">
+              <svg class="icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download the APK</span>
+            </a>
+          </div>
+          <p class="aside">Both links go to the latest release on GitHub. There are no builds for Windows, macOS or iOS yet.</p>
+        </div>
+        <div class="first-steps">
+          <figure class="figure">
+            <div class="shot">
+              <img class="zoom" style="--z: 1.7; --at: 50% 46%; --z-sm: 2.2; --at-sm: 50% 42%" src="assets/welcome.png" width="1280" height="800" loading="lazy" decoding="async" alt="The first screen of Quire, with the choices Create a new folder and Open a folder.">
+            </div>
+          </figure>
+          <ol class="steps">
+            <li>Start Quire.</li>
+            <li>Create a new folder, or open a folder of <code>.md</code> files that you already have.</li>
+            <li>Press <kbd>Ctrl+N</kbd> to write your first note.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <p class="lockup lockup--footer"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><rect class="mark-back" x="38" y="10" width="46" height="60" rx="6"/><rect class="mark-mid" x="27" y="20" width="46" height="60" rx="6"/><rect class="mark-front" x="16" y="30" width="46" height="60" rx="6"/></svg><span class="wordmark">quire</span></p>
+      <p class="footer-line">Open source under the MIT licence.</p>
+    </div>
+    <ul class="footer-links">
+      <li><a href="#download" data-repo-path="">Source code</a></li>
+      <li><a href="#download" data-repo-path="/releases">Releases</a></li>
+      <li><a href="#download" data-repo-path="/issues">Issues</a></li>
+    </ul>
+    <p class="footer-fonts">This page uses Newsreader, Instrument Sans and IBM Plex Mono. The specimens use Courier Prime and Spline Sans Mono. All five fonts are under the SIL Open Font License: <a href="fonts/OFL-newsreader.txt">Newsreader</a>, <a href="fonts/OFL-instrumentsans.txt">Instrument Sans</a>, <a href="fonts/OFL-ibmplexmono.txt">IBM Plex Mono</a>, <a href="fonts/OFL-courierprime.txt">Courier Prime</a>, <a href="fonts/OFL-splinesansmono.txt">Spline Sans Mono</a>.</p>
+  </div>
+</footer>
+</body>
+</html>

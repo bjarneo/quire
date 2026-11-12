@@ -1,0 +1,33 @@
+[package]
+name = "quire"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "A plain editor for folders of Markdown files."
+
+[[bin]]
+name = "quire"
+path = "src/main.rs"
+
+[dependencies]
+rune = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6", default-features = false, features = ["accessibility", "dbus", "svg", "native-file-dialog"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Rune builds these crates with its own changes. Cargo ignores a dependency's [patch]
+# section, so the app repeats it here at the same Rune revision.
+[patch.crates-io]
+wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
+winit = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
+parley_engine = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
+accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

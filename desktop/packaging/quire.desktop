@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Quire
+GenericName=Markdown Editor
+Comment=A plain editor for folders of Markdown files
+Exec=quire %F
+Icon=quire
+Terminal=false
+Categories=Office;TextEditor;Utility;
+MimeType=inode/directory;text/markdown;
+StartupWMClass=quire
+Keywords=markdown;notes;editor;wiki;

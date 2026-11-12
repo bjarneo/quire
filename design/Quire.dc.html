@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400;1,600&family=Instrument+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Spline+Sans+Mono:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<style>
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:#dcd6ca;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+a{color:#7a4fba}a:hover{color:#5c3896}
+button{font:inherit;color:inherit}
+textarea::selection{background:rgba(138,95,201,.26);color:transparent}
+::selection{background:rgba(138,95,201,.22)}
+input::placeholder,textarea::placeholder{color:#9a9184}
+*::-webkit-scrollbar{width:10px;height:10px}*::-webkit-scrollbar-track{background:transparent}*::-webkit-scrollbar-thumb{background:rgba(120,100,70,.22);border-radius:10px;border:3px solid transparent;background-clip:content-box}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="position:fixed; inset:0; display:flex; justify-content:center; padding:{{ deskPad }}; box-sizing:border-box; background:var(--q-desk,#dcd6ca); font-family:'Instrument Sans', system-ui, sans-serif; font-size:13.5px; color:var(--q-ink,#2a2723)">
+<div style="position:relative; flex:1; min-width:0; max-width:{{ winMax }}; display:flex; flex-direction:column; overflow:hidden; background:{{ winBg }}; border-radius:{{ winRadius }}; box-shadow:{{ winShadow }}">
+
+<sc-if value="{{ isWelcome }}">
+<div data-screen-label="Welcome" style="flex:1; min-height:0; display:flex; flex-direction:column; background:var(--q-bg,#f8f5ef)">
+  <div style="height:42px; flex:none; display:flex; align-items:center; padding-left:14px">
+    <sc-if value="{{ showDots }}"><div style="display:flex; gap:8px; align-items:center"><span style="width:12px; height:12px; border-radius:50%; background:{{ dot1 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot2 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot3 }}"></span></div></sc-if>
+    <div style="flex:1"></div>
+    <sc-if value="{{ isWin }}"><div style="display:flex; align-self:stretch"><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1"></path></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:#c42b1c; color:#ffffff"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" stroke-width="1"></path></svg></span></div></sc-if>
+  </div>
+  <div style="flex:1; min-height:0; overflow-y:auto; display:flex; padding:24px 24px 72px">
+    <div style="margin:auto; width:100%; max-width:440px; display:flex; flex-direction:column; gap:40px">
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="font-family:'Newsreader', Georgia, serif; font-size:60px; line-height:1; letter-spacing:-0.02em; color:var(--q-ink,#2a2723)">Quire</div>
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; line-height:1.6; color:var(--q-mute,#776f64)">A plain editor for folders of Markdown files.</div>
+      </div>
+      <sc-if value="{{ notCreating }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <button onClick="{{ startCreate }}" style="display:flex; align-items:center; gap:16px; padding:14px 16px; text-align:left; border:1px solid var(--q-line,#e1dbcf); border-radius:10px; background:var(--q-bg,#f8f5ef); cursor:default" style-hover="border-color:var(--q-mark,#b2a999)">
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="font-size:14.5px; font-weight:500; color:var(--q-ink,#2a2723)">Create a new folder</span><span style="font-size:12.5px; color:var(--q-mute,#776f64)">Start an empty notebook anywhere on your disk.</span></div>
+            <span style="font-family:'IBM Plex Mono', monospace; font-size:15px; color:var(--q-mute,#776f64)">→</span>
+          </button>
+          <button onClick="{{ openFirstVault }}" style="display:flex; align-items:center; gap:16px; padding:14px 16px; text-align:left; border:1px solid var(--q-line,#e1dbcf); border-radius:10px; background:var(--q-bg,#f8f5ef); cursor:default" style-hover="border-color:var(--q-mark,#b2a999)">
+            <div style="flex:1; display:flex; flex-direction:column; gap:3px"><span style="font-size:14.5px; font-weight:500; color:var(--q-ink,#2a2723)">Open a folder…</span><span style="font-size:12.5px; color:var(--q-mute,#776f64)">Use any folder of .md files you already have.</span></div>
+            <span style="font-family:'IBM Plex Mono', monospace; font-size:15px; color:var(--q-mute,#776f64)">→</span>
+          </button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ creating }}">
+        <div style="display:flex; flex-direction:column; gap:12px; padding:16px; border:1px solid var(--q-line,#e1dbcf); border-radius:10px">
+          <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">folder name</div>
+          <input ref="{{ newVaultRef }}" value="{{ newVaultName }}" onChange="{{ onNewVaultName }}" onKeyDown="{{ onNewVaultKey }}" placeholder="My notes" spellCheck="false" style="height:36px; padding:0 12px; border:1px solid var(--q-line,#e1dbcf); border-radius:8px; background:var(--q-bg,#f8f5ef); font:inherit; font-size:14px; color:var(--q-ink,#2a2723); outline:none">
+          <div style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64)">{{ newVaultPath }}</div>
+          <div style="display:flex; gap:8px; justify-content:flex-end">
+            <button onClick="{{ cancelCreate }}" style="height:32px; padding:0 14px; border:1px solid var(--q-line,#e1dbcf); border-radius:8px; background:transparent; font-size:13px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Cancel</button>
+            <button onClick="{{ createVault }}" style="height:32px; padding:0 16px; border:0; border-radius:8px; background:#7d52bd; font-size:13px; font-weight:500; color:#ffffff; cursor:default" style-hover="background:#6c44a8">Create</button>
+          </div>
+        </div>
+      </sc-if>
+      <div style="display:flex; flex-direction:column; gap:2px">
+        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); padding:0 0 8px">recent</div>
+        <sc-for list="{{ recentVaults }}" as="v" hint-placeholder-count="1">
+          <button onClick="{{ v.open }}" style="display:flex; align-items:baseline; gap:12px; padding:9px 10px; margin:0 -10px; border:0; border-radius:8px; background:transparent; text-align:left; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+            <span style="font-size:14px; font-weight:500; color:var(--q-ink,#2a2723); white-space:nowrap">{{ v.name }}</span>
+            <span style="flex:1; min-width:0; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ v.path }}</span>
+            <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64); white-space:nowrap">{{ v.count }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isVault }}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{ focus }}">
+  <div style="height:42px; flex:none; display:flex; align-items:center; gap:8px; padding-left:14px; background:var(--q-bg,#f8f5ef); opacity:0; transition:opacity .25s" style-hover="opacity:1">
+    <sc-if value="{{ showDots }}"><div style="display:flex; gap:8px; align-items:center"><span style="width:12px; height:12px; border-radius:50%; background:{{ dot1 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot2 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot3 }}"></span></div></sc-if>
+    <div style="flex:1"></div>
+    <button onClick="{{ toggleFocus }}" style="height:26px; padding:0 10px; margin-right:10px; border:0; border-radius:6px; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)">leave focus · esc</button>
+    <sc-if value="{{ isWin }}"><div style="display:flex; align-self:stretch"><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1"></path></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:#c42b1c; color:#ffffff"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" stroke-width="1"></path></svg></span></div></sc-if>
+  </div>
+</sc-if>
+<sc-if value="{{ notFocus }}" hint-placeholder-val="{{ true }}">
+  <div style="height:42px; flex:none; display:flex; align-items:stretch">
+    <div style="width:{{ leftZoneW }}; flex:none; display:flex; align-items:center; gap:10px; padding:0 8px 0 14px; box-sizing:border-box">
+      <sc-if value="{{ showDots }}"><div style="display:flex; gap:8px; align-items:center"><span style="width:12px; height:12px; border-radius:50%; background:{{ dot1 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot2 }}"></span><span style="width:12px; height:12px; border-radius:50%; background:{{ dot3 }}"></span></div></sc-if>
+      <div style="flex:1"></div>
+      <button onClick="{{ toggleLeft }}" title="Toggle sidebar" style="width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="3" width="12" height="10" rx="2"></rect><path d="M6 3v10"></path></svg></button>
+    </div>
+    <div style="flex:1; min-width:0; display:flex; align-items:flex-end; gap:2px; padding:0 4px 0 6px; margin-bottom:-1px; position:relative; z-index:3; overflow:hidden">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+        <div onClick="{{ t.open }}" onAuxClick="{{ t.aux }}" title="{{ t.path }}" style="position:relative; display:flex; align-items:center; gap:6px; height:34px; flex:0 1 190px; min-width:72px; padding:0 6px 0 14px; box-sizing:border-box; border:1px solid {{ t.border }}; border-bottom:0; border-radius:9px 9px 0 0; background:{{ t.bg }}; color:{{ t.color }}; font-size:13px; cursor:default; user-select:none" style-hover="color:var(--q-ink,#2a2723)">
+          <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ t.name }}</span>
+          <button onClick="{{ t.close }}" title="Close" style="width:20px; height:20px; flex:none; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:5px; background:transparent; color:var(--q-mute,#776f64); opacity:{{ t.xOp }}; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); opacity:1"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg></button>
+        </div>
+      </sc-for>
+      <button onClick="{{ newNoteClick }}" title="New note" style="width:28px; height:28px; flex:none; margin:0 0 4px 2px; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg></button>
+    </div>
+    <div style="flex:none; display:flex; align-items:center; gap:6px; padding:0 10px 0 6px">
+      <sc-if value="{{ hasDoc }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; gap:2px; padding:2px; border-radius:7px; background:var(--q-hover,rgba(70,50,20,.06))">
+          <button onClick="{{ setSource }}" style="height:22px; padding:0 9px; border:0; border-radius:5px; font-family:'IBM Plex Mono', monospace; font-size:11px; cursor:default; background:{{ srcBg }}; color:{{ srcColor }}; box-shadow:{{ srcShadow }}">source</button>
+          <button onClick="{{ setPreview }}" style="height:22px; padding:0 9px; border:0; border-radius:5px; font-family:'IBM Plex Mono', monospace; font-size:11px; cursor:default; background:{{ prvBg }}; color:{{ prvColor }}; box-shadow:{{ prvShadow }}">preview</button>
+        </div>
+      </sc-if>
+      <button onClick="{{ toggleRight }}" title="Toggle outline" style="width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="3" width="12" height="10" rx="2"></rect><path d="M10 3v10"></path></svg></button>
+    </div>
+    <sc-if value="{{ isWin }}"><div style="display:flex; align-self:stretch"><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5.5h10" stroke="currentColor" stroke-width="1"></path></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"></rect></svg></span><span style="width:46px; display:flex; align-items:center; justify-content:center; color:var(--q-ink2,#5b554d)" style-hover="background:#c42b1c; color:#ffffff"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" stroke="currentColor" stroke-width="1"></path></svg></span></div></sc-if>
+  </div>
+</sc-if>
+
+<div data-screen-label="Editor" style="flex:1; min-height:0; display:flex">
+  <sc-if value="{{ leftVisible }}" hint-placeholder-val="{{ true }}">
+    <div style="width:248px; flex:none; display:flex; flex-direction:column; min-height:0; position:relative">
+      <div style="padding:4px 8px 6px">
+        <button onClick="{{ toggleVaultMenu }}" style="display:flex; align-items:center; gap:6px; width:100%; height:32px; padding:0 10px; border:0; border-radius:7px; background:transparent; text-align:left; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+          <span style="flex:1; min-width:0; font-size:14px; font-weight:600; color:var(--q-ink,#2a2723); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ vaultName }}</span>
+          <svg width="10" height="10" viewBox="0 0 10 10" style="color:var(--q-mute,#776f64)"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+      </div>
+      <div style="display:flex; gap:2px; padding:0 12px 10px">
+        <sc-for list="{{ panelTabs }}" as="p" hint-placeholder-count="3"><button onClick="{{ p.onClick }}" style="height:24px; padding:0 8px; border:0; border-radius:6px; background:{{ p.bg }}; color:{{ p.color }}; font-family:'IBM Plex Mono', monospace; font-size:11.5px; cursor:default" style-hover="color:var(--q-ink,#2a2723)">{{ p.label }}</button></sc-for>
+      </div>
+      <div style="flex:1; min-height:0; overflow-y:auto; padding-bottom:12px">
+        <sc-if value="{{ panelFiles }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ treeRows }}" as="r" hint-placeholder-count="8">
+            <div onClick="{{ r.onClick }}" title="{{ r.title }}" style="display:flex; align-items:center; gap:6px; height:28px; margin:0 8px; padding:0 8px 0 {{ r.pad }}; border-radius:6px; font-size:13.5px; color:{{ r.color }}; font-weight:{{ r.weight }}; box-shadow:{{ r.shadow }}; cursor:default; user-select:none" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+              <span style="width:12px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--q-mute,#776f64); opacity:{{ r.chevOp }}"><svg width="8" height="8" viewBox="0 0 8 8" style="transform:{{ r.rot }}; transition:transform .12s"><path d="M2.5 1l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+              <sc-if value="{{ r.isFolder }}"><span style="width:15px; height:15px; flex:none; display:flex; align-items:center; justify-content:center; color:var(--q-mute,#776f64)"><sc-if value="{{ r.closed }}"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.6h4.9A1.5 1.5 0 0 1 14 6.1v5.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"></path></svg></sc-if><sc-if value="{{ r.open }}"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2 11.5v-7A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.6h3.9A1.5 1.5 0 0 1 13 6.1V7"></path><path d="M2.3 12.3l1.5-4.1A1.5 1.5 0 0 1 5.2 7.2h8.2a.9.9 0 0 1 .85 1.2l-1.3 3.6a1.5 1.5 0 0 1-1.4 1H3.4a1.2 1.2 0 0 1-1.1-.7z"></path></svg></sc-if></span></sc-if>
+              <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.name }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ treeEmpty }}"><div style="padding:6px 22px; font-size:13px; color:var(--q-mute,#776f64)">No notes yet.</div></sc-if>
+        </sc-if>
+        <sc-if value="{{ panelSearch }}">
+          <div style="padding:0 12px">
+            <div style="display:flex; align-items:center; gap:8px; height:32px; padding:0 8px 0 10px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:var(--q-bg,#f8f5ef)">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none; color:var(--q-mute,#776f64)"><circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5L14 14" stroke-linecap="round"></path></svg>
+              <input ref="{{ searchRef }}" value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search notes" spellCheck="false" style="flex:1; min-width:0; border:0; outline:none; background:transparent; font:inherit; font-size:13px; color:var(--q-ink,#2a2723)">
+              <sc-if value="{{ hasQuery }}"><button onClick="{{ clearQuery }}" title="Clear" style="width:20px; height:20px; flex:none; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:5px; background:transparent; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg></button></sc-if>
+            </div>
+            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); padding:10px 2px 4px">{{ searchSummary }}</div>
+          </div>
+          <sc-for list="{{ results }}" as="r">
+            <div style="padding:6px 0 6px">
+              <div onClick="{{ r.open }}" style="display:flex; align-items:baseline; gap:8px; margin:0 8px; padding:4px 12px; border-radius:6px; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+                <span style="font-size:13px; font-weight:600; color:var(--q-ink,#2a2723); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.name }}</span>
+                <span style="flex:1; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.sub }}</span>
+                <span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">{{ r.count }}</span>
+              </div>
+              <sc-for list="{{ r.hits }}" as="h">
+                <div onClick="{{ h.open }}" style="margin:1px 8px; padding:4px 12px; border-radius:6px; font-size:12.5px; line-height:1.45; color:var(--q-ink2,#5b554d); cursor:default; overflow-wrap:anywhere" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><span>{{ h.a }}</span><mark style="background:var(--q-soft,#ebe3f5); color:var(--q-ink,#2a2723); border-radius:3px; padding:0 1px">{{ h.b }}</mark><span>{{ h.c }}</span></div>
+              </sc-for>
+              <sc-if value="{{ r.hasMore }}"><div style="padding:2px 20px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">{{ r.more }}</div></sc-if>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{ panelTags }}">
+          <sc-for list="{{ tagRows }}" as="t">
+            <div onClick="{{ t.onClick }}" style="display:flex; align-items:center; justify-content:space-between; height:28px; margin:0 8px; padding:0 10px; border-radius:6px; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+              <span style="font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-acc,#7a4fba)">{{ t.label }}</span>
+              <span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">{{ t.count }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ tagsEmpty }}"><div style="padding:6px 22px; font-size:13px; color:var(--q-mute,#776f64)">No tags yet. Write #something in a note.</div></sc-if>
+        </sc-if>
+      </div>
+      <div style="flex:none; display:flex; flex-direction:column; gap:1px; padding:6px 8px 10px">
+        <button onClick="{{ newNoteClick }}" style="display:flex; align-items:center; justify-content:space-between; height:30px; padding:0 10px; border:0; border-radius:6px; background:transparent; font-size:13px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><span>New note</span><span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">{{ kNew }}</span></button>
+        <button onClick="{{ openSettings }}" style="display:flex; align-items:center; justify-content:space-between; height:30px; padding:0 10px; border:0; border-radius:6px; background:transparent; font-size:13px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><span>Settings</span><span style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">{{ kSettings }}</span></button>
+      </div>
+      <sc-if value="{{ vaultMenu }}">
+        <div onMouseDown="{{ closeVaultMenu }}" style="position:fixed; inset:0; z-index:30"></div>
+        <div style="position:absolute; top:40px; left:10px; width:228px; z-index:31; padding:5px; box-sizing:border-box; background:var(--q-bg,#f8f5ef); border-radius:9px; box-shadow:0 0 0 1px rgba(30,20,5,.10), 0 14px 34px -10px rgba(40,28,10,.35)">
+          <div style="padding:7px 10px 8px; font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.45; color:var(--q-mute,#776f64); overflow-wrap:anywhere">{{ vaultPath }}</div>
+          <button onClick="{{ goWelcome }}" style="display:flex; width:100%; height:30px; align-items:center; padding:0 10px; border:0; border-radius:6px; background:transparent; font-size:13px; text-align:left; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Switch folder…</button>
+          <button onClick="{{ openSettings }}" style="display:flex; width:100%; height:30px; align-items:center; padding:0 10px; border:0; border-radius:6px; background:transparent; font-size:13px; text-align:left; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Settings</button>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column; position:relative; overflow:hidden; background:var(--q-bg,#f8f5ef); border-top:{{ sheetTop }}; border-left:{{ sheetLeft }}; border-top-left-radius:{{ sheetRadius }}">
+    <div style="flex:1; min-height:0; display:flex">
+      <div ref="{{ scRef }}" onScroll="{{ onScroll }}" style="flex:1; min-width:0; overflow-y:auto; position:relative">
+        <sc-if value="{{ hasDoc }}" hint-placeholder-val="{{ true }}">
+          <div onMouseDown="{{ onColDown }}" style="max-width:{{ colMax }}; margin:0 auto; padding:{{ colPad }}; font-family:{{ edFamily }}; font-size:{{ edSize }}">
+            <sc-if value="{{ showCrumb }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; align-items:center; gap:6px; height:24px; margin-bottom:30px; font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--q-mute,#776f64)">
+                <sc-if value="{{ hasFolder }}"><span>{{ folderName }}</span><span style="color:var(--q-mark,#b2a999)">/</span></sc-if>
+                <sc-if value="{{ notRenaming }}" hint-placeholder-val="{{ true }}"><button onClick="{{ startRename }}" title="Rename note" style="display:flex; padding:2px 5px; margin:0 -5px; border:0; border-radius:5px; background:transparent; font:inherit; color:var(--q-ink2,#5b554d); cursor:text" style-hover="background:var(--q-hover,rgba(70,50,20,.06))"><span>{{ fileBase }}</span><span style="color:var(--q-mark,#b2a999)">.md</span></button></sc-if>
+                <sc-if value="{{ renaming }}"><div style="display:flex; align-items:center"><input ref="{{ renameRef }}" value="{{ renameVal }}" onChange="{{ onRenameVal }}" onKeyDown="{{ onRenameKey }}" onBlur="{{ commitRename }}" spellCheck="false" style="width:{{ renameW }}; min-width:8ch; padding:2px 5px; margin:0 -5px; border:0; border-radius:5px; outline:none; background:var(--q-soft,#ebe3f5); font:inherit; color:var(--q-ink,#2a2723)"><span style="color:var(--q-mark,#b2a999); margin-left:5px">.md</span></div></sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ isSource }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative">{{ hlEl }}<textarea ref="{{ taRef }}" value="{{ docText }}" onChange="{{ onText }}" onSelect="{{ onSel }}" onKeyDown="{{ onTaKey }}" onClick="{{ onTaClick }}" onScroll="{{ onTaScroll }}" spellCheck="{{ spell }}" autoComplete="off" autoCapitalize="off" placeholder="Start writing…" style="position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; border:0; outline:none; resize:none; overflow:hidden; background:transparent; color:transparent; caret-color:var(--q-acc,#7a4fba); font-family:{{ edFamily }}; font-size:{{ edSize }}; line-height:1.75; letter-spacing:0; white-space:pre-wrap; overflow-wrap:break-word; word-break:normal; tab-size:4; font-variant-ligatures:none; box-sizing:border-box"></textarea></div>
+            </sc-if>
+            <sc-if value="{{ isPreview }}">{{ previewEl }}</sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showNoTab }}">
+          <div style="min-height:100%; display:flex; align-items:center; justify-content:center; padding:40px; box-sizing:border-box">
+            <div style="display:flex; flex-direction:column; gap:12px; width:260px">
+              <sc-for list="{{ hints }}" as="h">
+                <button onClick="{{ h.run }}" style="display:flex; justify-content:space-between; gap:24px; padding:0; border:0; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="color:var(--q-acc,#7a4fba)"><span>{{ h.label }}</span><span style="color:var(--q-mute,#776f64)">{{ h.kbd }}</span></button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showEmptyVault }}">
+          <div style="min-height:100%; display:flex; align-items:center; justify-content:center; padding:40px; box-sizing:border-box">
+            <div style="max-width:380px; display:flex; flex-direction:column; align-items:flex-start; gap:14px">
+              <div style="font-family:'Newsreader', Georgia, serif; font-size:32px; line-height:1.15; color:var(--q-ink,#2a2723)">Nothing here yet.</div>
+              <div style="font-size:14px; line-height:1.6; color:var(--q-ink2,#5b554d); text-wrap:pretty">{{ emptyVaultText }}</div>
+              <button onClick="{{ newNoteClick }}" style="display:flex; align-items:center; gap:12px; height:34px; margin-top:6px; padding:0 14px; border:0; border-radius:8px; background:#7d52bd; color:#ffffff; font-size:13.5px; font-weight:500; cursor:default" style-hover="background:#6c44a8"><span>Create your first note</span><span style="font-family:'IBM Plex Mono', monospace; font-size:11px; opacity:.8">{{ kNew }}</span></button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ rightVisible }}" hint-placeholder-val="{{ true }}">
+        <div style="width:236px; flex:none; border-left:1px solid var(--q-line,#e1dbcf); overflow-y:auto; padding:24px 10px 24px; box-sizing:border-box">
+          <div style="padding:0 10px 8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">outline</div>
+          <sc-for list="{{ outline }}" as="o" hint-placeholder-count="4">
+            <div onClick="{{ o.onClick }}" style="display:flex; align-items:center; gap:8px; padding:4px 8px 4px {{ o.pad }}; border-radius:6px; font-size:13px; line-height:1.35; color:{{ o.color }}; font-weight:{{ o.weight }}; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">
+              <span style="width:5px; height:5px; flex:none; border-radius:50%; background:{{ o.dot }}"></span>
+              <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ o.text }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noOutline }}"><div style="padding:2px 10px; font-size:12.5px; color:var(--q-mute,#776f64)">No headings in this note.</div></sc-if>
+          <div style="padding:26px 10px 8px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">linked from</div>
+          <sc-for list="{{ backlinks }}" as="b">
+            <div onClick="{{ b.onClick }}" style="display:flex; align-items:baseline; gap:8px; padding:4px 10px; border-radius:6px; font-size:13px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)">
+              <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ b.name }}</span>
+              <span style="flex:1; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--q-mute,#776f64); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ b.sub }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noBacklinks }}"><div style="padding:2px 10px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">No notes link here yet.</div></sc-if>
+        </div>
+      </sc-if>
+    </div>
+    <sc-if value="{{ showStatus }}" hint-placeholder-val="{{ true }}">
+      <div style="height:28px; flex:none; display:flex; align-items:center; gap:18px; padding:0 16px; border-top:1px solid var(--q-line,#e1dbcf); font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64); white-space:nowrap; overflow:hidden">
+        <span>{{ posLabel }}</span>
+        <sc-if value="{{ hasLinkHint }}"><span style="color:var(--q-acc,#7a4fba); overflow:hidden; text-overflow:ellipsis">{{ linkHint }}</span></sc-if>
+        <div style="flex:1"></div>
+        <span>{{ wordLabel }}</span>
+        <span>{{ readLabel }}</span>
+        <sc-if value="{{ syncOn }}"><span style="display:flex; align-items:center; gap:6px"><span style="width:6px; height:6px; border-radius:50%; background:{{ syncDot }}"></span><span>{{ syncLabel }}</span></span></sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ focus }}">
+      <div style="position:absolute; left:0; right:0; bottom:14px; display:flex; justify-content:center; pointer-events:none">
+        <span style="padding:4px 10px; border-radius:6px; background:var(--q-bg,#f8f5ef); font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64)">{{ focusHint }}</span>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ palOpen }}">
+  <div onMouseDown="{{ closePalette }}" style="position:absolute; inset:0; z-index:50; display:flex; justify-content:center; align-items:flex-start; padding:11vh 20px 20px; background:rgba(40,30,15,.16)">
+    <div onMouseDown="{{ stop }}" style="width:100%; max-width:600px; max-height:100%; display:flex; flex-direction:column; overflow:hidden; background:var(--q-bg,#f8f5ef); border-radius:12px; box-shadow:0 0 0 1px rgba(30,20,5,.10), 0 24px 60px -16px rgba(40,28,10,.45)">
+      <div style="height:52px; flex:none; display:flex; align-items:center; gap:12px; padding:0 18px; border-bottom:1px solid var(--q-line,#e1dbcf)">
+        <span style="padding:3px 7px; border-radius:5px; background:var(--q-soft,#ebe3f5); font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-acc,#7a4fba)">{{ palTag }}</span>
+        <input ref="{{ palRef }}" value="{{ palQ }}" onChange="{{ onPalQ }}" onKeyDown="{{ onPalKey }}" placeholder="{{ palPlaceholder }}" spellCheck="false" autoComplete="off" style="flex:1; min-width:0; border:0; outline:none; background:transparent; font:inherit; font-size:15px; color:var(--q-ink,#2a2723)">
+      </div>
+      <div ref="{{ palListRef }}" style="position:relative; flex:1; min-height:0; max-height:380px; overflow-y:auto; padding:6px">
+        <sc-for list="{{ palItems }}" as="it" hint-placeholder-count="6">
+          <div onClick="{{ it.run }}" onMouseMove="{{ it.hover }}" style="display:flex; align-items:center; gap:12px; min-height:36px; padding:0 12px; border-radius:7px; background:{{ it.bg }}; cursor:default">
+            <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; color:var(--q-ink,#2a2723)"><sc-for list="{{ it.segs }}" as="g"><span style="color:{{ g.c }}; font-weight:{{ g.w }}">{{ g.t }}</span></sc-for></div>
+            <span style="flex:none; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-mute,#776f64)">{{ it.sub }}</span>
+          </div>
+        </sc-for>
+        <sc-if value="{{ palEmpty }}"><div style="padding:14px 12px; font-size:13px; color:var(--q-mute,#776f64)">Nothing matches.</div></sc-if>
+      </div>
+      <div style="height:34px; flex:none; display:flex; align-items:center; gap:16px; padding:0 18px; border-top:1px solid var(--q-line,#e1dbcf); font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); white-space:nowrap; overflow:hidden">
+        <span>↑↓ select</span><span>{{ palVerb }}</span><span>esc close</span><div style="flex:1"></div><span>{{ palSwitchHint }}</span>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ settingsOpen }}">
+  <div onMouseDown="{{ closeSettings }}" style="position:absolute; inset:0; z-index:40; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(40,30,15,.22)">
+    <div onMouseDown="{{ stop }}" style="width:100%; max-width:780px; height:min(580px, 100%); display:flex; overflow:hidden; background:var(--q-bg,#f8f5ef); border-radius:12px; box-shadow:0 0 0 1px rgba(30,20,5,.08), 0 30px 80px -20px rgba(40,28,10,.45)">
+      <div style="width:190px; flex:none; display:flex; flex-direction:column; gap:2px; padding:18px 10px; box-sizing:border-box; background:var(--q-side,#efebe3)">
+        <div style="padding:0 10px 10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)">settings</div>
+        <sc-for list="{{ setNav }}" as="n" hint-placeholder-count="4"><button onClick="{{ n.onClick }}" style="height:30px; padding:0 10px; border:0; border-radius:6px; text-align:left; background:{{ n.bg }}; color:{{ n.color }}; font-size:13.5px; font-weight:{{ n.weight }}; cursor:default" style-hover="color:var(--q-ink,#2a2723)">{{ n.label }}</button></sc-for>
+      </div>
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+        <div style="height:58px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 16px 0 32px">
+          <div style="font-size:17px; font-weight:600; color:var(--q-ink,#2a2723)">{{ setTitle }}</div>
+          <button onClick="{{ closeSettings }}" title="Close" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent; color:var(--q-mute,#776f64); cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06)); color:var(--q-ink,#2a2723)"><svg width="10" height="10" viewBox="0 0 8 8"><path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg></button>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:0 32px 28px">
+          <sc-if value="{{ secAppearance }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Theme</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Match system follows your OS setting.</div></div>
+              <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ themeOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-size:12.5px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Preview typeface</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Used when reading a note in preview.</div></div>
+              <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ prevOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-size:12.5px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ secEditor }}">
+            <div style="padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="font-size:14px; font-weight:500">Editor font</div>
+              <div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Monospaced, so Markdown syntax lines up as you type.</div>
+              <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; margin-top:14px">
+                <sc-for list="{{ fontOpts }}" as="f" hint-placeholder-count="3">
+                  <button onClick="{{ f.onClick }}" style="display:flex; flex-direction:column; gap:8px; padding:12px 14px 14px; text-align:left; border:1px solid {{ f.border }}; box-shadow:{{ f.ring }}; border-radius:9px; background:var(--q-bg,#f8f5ef); cursor:default">
+                    <span style="font-size:11.5px; color:{{ f.labelColor }}">{{ f.label }}</span>
+                    <span style="font-family:{{ f.family }}; font-size:15px; line-height:1.5; color:var(--q-ink,#2a2723)">## Field notes</span>
+                    <span style="font-family:{{ f.family }}; font-size:13px; line-height:1.5; color:var(--q-ink2,#5b554d)">Rain until 14:00.</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Font size</div></div>
+              <div style="display:flex; align-items:center; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)">
+                <button onClick="{{ sizeDown }}" style="width:28px; height:26px; padding:0; border:0; border-radius:6px; background:transparent; font-size:15px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-bg,#f8f5ef)">−</button>
+                <span style="min-width:48px; text-align:center; font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--q-ink,#2a2723)">{{ sizeLabel }}</span>
+                <button onClick="{{ sizeUp }}" style="width:28px; height:26px; padding:0; border:0; border-radius:6px; background:transparent; font-size:15px; color:var(--q-ink2,#5b554d); cursor:default" style-hover="background:var(--q-bg,#f8f5ef)">+</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Line width</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Readable keeps lines to about 72 characters.</div></div>
+              <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ widthOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-size:12.5px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+            </div>
+            <sc-for list="{{ edToggles }}" as="tg">
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">{{ tg.label }}</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">{{ tg.desc }}</div></div>
+                <button onClick="{{ tg.onClick }}" style="width:36px; height:20px; flex:none; display:flex; align-items:center; justify-content:{{ tg.justify }}; padding:2px; border:0; border-radius:10px; background:{{ tg.bg }}; cursor:default; transition:background .15s"><span style="width:16px; height:16px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></button>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ secFiles }}">
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Folder location</div><div style="margin-top:4px; font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--q-mute,#776f64); overflow-wrap:anywhere">{{ vaultPath }}</div></div>
+              <button onClick="{{ goWelcome }}" style="height:30px; padding:0 12px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:transparent; font-size:12.5px; white-space:nowrap; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Switch folder…</button>
+            </div>
+            <div style="padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="font-size:14px; font-weight:500">New notes go in</div>
+              <div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Notes created from links and the switcher land here too.</div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"><sc-for list="{{ folderOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:28px; padding:0 12px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; font-family:'IBM Plex Mono', monospace; font-size:12px; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+            </div>
+            <sc-for list="{{ fileToggles }}" as="tg">
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">{{ tg.label }}</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">{{ tg.desc }}</div></div>
+                <button onClick="{{ tg.onClick }}" style="width:36px; height:20px; flex:none; display:flex; align-items:center; justify-content:{{ tg.justify }}; padding:2px; border:0; border-radius:10px; background:{{ tg.bg }}; cursor:default; transition:background .15s"><span style="width:16px; height:16px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></button>
+              </div>
+            </sc-for>
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Sample notes</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Put Field Notes back the way it started.</div></div>
+              <button onClick="{{ resetSample }}" style="height:30px; padding:0 12px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:transparent; font-size:12.5px; white-space:nowrap; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Restore</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ secSync }}">
+            <div style="padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="font-size:14px; font-weight:500">Storage backend</div>
+              <div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64); text-wrap:pretty">Notes always live on this computer first. A backend keeps a copy in object storage you control.</div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; margin-top:14px">
+                <sc-for list="{{ providerOpts }}" as="pv" hint-placeholder-count="12">
+                  <button onClick="{{ pv.onClick }}" style="display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:0; padding:10px 12px; text-align:left; border:1px solid {{ pv.border }}; box-shadow:{{ pv.ring }}; border-radius:9px; background:var(--q-bg,#f8f5ef); cursor:default">
+                    <span style="max-width:100%; font-size:13px; font-weight:500; color:var(--q-ink,#2a2723); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ pv.name }}</span>
+                    <span style="max-width:100%; font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:{{ pv.kindColor }}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ pv.kind }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <sc-if value="{{ hasProvider }}">
+              <div style="padding:16px 0 18px; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="font-size:14px; font-weight:500">{{ providerTitle }}</div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 12px; margin-top:14px">
+                  <sc-for list="{{ syncFields }}" as="f">
+                    <div style="grid-column:{{ f.span }}; min-width:0; display:flex; flex-direction:column; gap:6px">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px"><span style="font-size:12.5px; font-weight:500; color:var(--q-ink2,#5b554d); white-space:nowrap">{{ f.label }}</span><span style="min-width:0; font-size:11.5px; color:var(--q-mute,#776f64); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ f.hint }}</span></div>
+                      <sc-if value="{{ f.isText }}"><div style="display:flex; align-items:center; height:32px; border:1px solid {{ f.border }}; border-radius:7px; background:var(--q-bg,#f8f5ef); overflow:hidden; box-sizing:border-box"><input value="{{ f.value }}" onChange="{{ f.onChange }}" placeholder="{{ f.ph }}" type="{{ f.inputType }}" spellCheck="false" autoComplete="off" style="flex:1; min-width:0; height:100%; padding:0 10px; border:0; outline:none; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink,#2a2723)"><sc-if value="{{ f.isSecret }}"><button onClick="{{ f.onReveal }}" style="height:100%; padding:0 10px; border:0; border-left:1px solid var(--q-line,#e1dbcf); background:transparent; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); cursor:default" style-hover="color:var(--q-ink,#2a2723)">{{ f.revealLabel }}</button></sc-if></div></sc-if>
+                      <sc-if value="{{ f.isChoice }}"><div style="display:flex; flex-wrap:wrap; gap:6px"><sc-for list="{{ f.opts }}" as="o"><button onClick="{{ o.onClick }}" style="height:28px; padding:0 10px; border:1px solid {{ o.border }}; border-radius:7px; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:{{ o.color }}; white-space:nowrap; cursor:default">{{ o.label }}</button></sc-for></div></sc-if>
+                      <sc-if value="{{ f.isArea }}"><textarea value="{{ f.value }}" onChange="{{ f.onChange }}" placeholder="{{ f.ph }}" spellCheck="false" style="width:100%; height:84px; padding:8px 10px; box-sizing:border-box; border:1px solid {{ f.border }}; border-radius:7px; background:var(--q-bg,#f8f5ef); font-family:'IBM Plex Mono', monospace; font-size:11.5px; line-height:1.5; color:var(--q-ink,#2a2723); outline:none; resize:vertical"></textarea></sc-if>
+                      <sc-if value="{{ f.isRead }}"><div style="padding:7px 10px; border-radius:7px; background:var(--q-code,#efe9de); font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--q-ink2,#5b554d); overflow-wrap:anywhere">{{ f.value }}</div></sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">When to sync</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">On save uploads a note a moment after you stop typing.</div></div>
+                <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ whenOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-size:12.5px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+              </div>
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Encrypt before upload</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Notes are encrypted on this computer, so the provider only stores ciphertext.</div></div>
+                <button onClick="{{ encOnClick }}" style="width:36px; height:20px; flex:none; display:flex; align-items:center; justify-content:{{ encJustify }}; padding:2px; border:0; border-radius:10px; background:{{ encBg }}; cursor:default; transition:background .15s"><span style="width:16px; height:16px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></button>
+              </div>
+              <sc-if value="{{ encryptOn }}">
+                <div style="display:flex; flex-direction:column; gap:6px; padding:0 0 16px">
+                  <span style="font-size:12.5px; font-weight:500; color:var(--q-ink2,#5b554d)">Passphrase</span>
+                  <div style="display:flex; align-items:center; height:32px; max-width:320px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:var(--q-bg,#f8f5ef); overflow:hidden; box-sizing:border-box"><input value="{{ passVal }}" onChange="{{ onPass }}" type="{{ passType }}" placeholder="At least 12 characters" spellCheck="false" autoComplete="off" style="flex:1; min-width:0; height:100%; padding:0 10px; border:0; outline:none; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink,#2a2723)"><button onClick="{{ onRevealPass }}" style="height:100%; padding:0 10px; border:0; border-left:1px solid var(--q-line,#e1dbcf); background:transparent; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); cursor:default" style-hover="color:var(--q-ink,#2a2723)">{{ passReveal }}</button></div>
+                  <span style="font-size:12px; color:var(--q-mute,#776f64)">If you lose this passphrase, the remote copy can't be recovered.</span>
+                </div>
+              </sc-if>
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:16px 0 4px; border-top:1px solid var(--q-line,#e1dbcf)">
+                <button onClick="{{ testSync }}" style="height:32px; padding:0 14px; border:0; border-radius:8px; background:#7d52bd; font-size:13px; font-weight:500; color:#ffffff; white-space:nowrap; cursor:default" style-hover="background:#6c44a8">{{ testLabel }}</button>
+                <sc-if value="{{ canSyncNow }}"><button onClick="{{ syncNow }}" style="height:32px; padding:0 14px; border:1px solid var(--q-line,#e1dbcf); border-radius:8px; background:transparent; font-size:13px; color:var(--q-ink,#2a2723); white-space:nowrap; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Sync now</button></sc-if>
+                <span style="flex:1; min-width:180px; font-size:12.5px; line-height:1.45; color:{{ syncMsgColor }}">{{ syncMsg }}</span>
+              </div>
+              <div style="padding-top:14px; font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.5; color:var(--q-mute,#776f64)">Keys are stored in your system keychain, never inside the notes folder.</div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ secMcp }}">
+            <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+              <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">MCP server</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64); text-wrap:pretty">Lets AI apps that speak the Model Context Protocol, such as Claude Desktop or Cursor, work with the notes in this folder.</div></div>
+              <button onClick="{{ mcpToggle }}" style="width:36px; height:20px; flex:none; display:flex; align-items:center; justify-content:{{ mcpJustify }}; padding:2px; border:0; border-radius:10px; background:{{ mcpBg }}; cursor:default; transition:background .15s"><span style="width:16px; height:16px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></button>
+            </div>
+            <sc-if value="{{ mcpOn }}">
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Transport</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">With stdio, the AI app starts Quire's helper itself. HTTP serves a local endpoint on this computer.</div></div>
+                <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ mcpTransportOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-family:'IBM Plex Mono', monospace; font-size:12px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+              </div>
+              <sc-if value="{{ mcpHttp }}">
+                <div style="display:grid; grid-template-columns:110px minmax(0, 1fr); gap:14px 12px; padding:0 0 18px">
+                  <div style="display:flex; flex-direction:column; gap:6px; min-width:0"><span style="font-size:12.5px; font-weight:500; color:var(--q-ink2,#5b554d)">Port</span><input value="{{ mcpPort }}" onChange="{{ onMcpPort }}" spellCheck="false" style="height:32px; padding:0 10px; box-sizing:border-box; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:var(--q-bg,#f8f5ef); font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink,#2a2723); outline:none; min-width:0"></div>
+                  <div style="display:flex; flex-direction:column; gap:6px; min-width:0"><span style="font-size:12.5px; font-weight:500; color:var(--q-ink2,#5b554d)">Address</span><div style="height:32px; display:flex; align-items:center; padding:0 10px; box-sizing:border-box; border-radius:7px; background:var(--q-code,#efe9de); font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--q-ink2,#5b554d); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ mcpUrl }}</div></div>
+                  <div style="grid-column:1 / -1; display:flex; flex-direction:column; gap:6px; min-width:0">
+                    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px"><span style="font-size:12.5px; font-weight:500; color:var(--q-ink2,#5b554d)">Access token</span><span style="font-size:11.5px; color:var(--q-mute,#776f64)">sent as a Bearer header</span></div>
+                    <div style="display:flex; gap:8px">
+                      <div style="flex:1; min-width:0; display:flex; align-items:center; height:32px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:var(--q-bg,#f8f5ef); overflow:hidden; box-sizing:border-box"><input value="{{ mcpToken }}" readOnly="{{ true }}" type="{{ mcpTokenType }}" style="flex:1; min-width:0; height:100%; padding:0 10px; border:0; outline:none; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink,#2a2723)"><button onClick="{{ onRevealToken }}" style="height:100%; padding:0 10px; border:0; border-left:1px solid var(--q-line,#e1dbcf); background:transparent; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64); cursor:default" style-hover="color:var(--q-ink,#2a2723)">{{ mcpTokenReveal }}</button></div>
+                      <button onClick="{{ regenToken }}" style="height:32px; padding:0 12px; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:transparent; font-size:12.5px; white-space:nowrap; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">Regenerate</button>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+              <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Access</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Read only turns off every tool that changes files.</div></div>
+                <div style="display:flex; gap:2px; padding:2px; border-radius:8px; background:var(--q-side,#efebe3)"><sc-for list="{{ mcpAccessOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:26px; padding:0 12px; border:0; border-radius:6px; font-size:12.5px; white-space:nowrap; cursor:default; background:{{ o.bg }}; color:{{ o.color }}; box-shadow:{{ o.shadow }}">{{ o.label }}</button></sc-for></div>
+              </div>
+              <div style="padding:16px 0 10px; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="font-size:14px; font-weight:500">Tools</div>
+                <div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">What connected apps are allowed to call.</div>
+                <div style="display:flex; flex-direction:column; margin-top:8px">
+                  <sc-for list="{{ mcpToolRows }}" as="t" hint-placeholder-count="8">
+                    <button onClick="{{ t.onClick }}" style="display:flex; align-items:center; gap:12px; padding:7px 0; border:0; background:transparent; text-align:left; opacity:{{ t.op }}; cursor:default">
+                      <span style="width:16px; height:16px; flex:none; box-sizing:border-box; display:flex; align-items:center; justify-content:center; border:1.5px solid {{ t.boxBorder }}; border-radius:4px; background:{{ t.boxBg }}"><sc-if value="{{ t.on }}"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 5.2l2.4 2.4L8.5 2.6" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if></span>
+                      <span style="width:128px; flex:none; font-family:'IBM Plex Mono', monospace; font-size:12.5px; color:var(--q-ink,#2a2723)">{{ t.name }}</span>
+                      <span style="flex:1; min-width:0; font-size:12.5px; color:var(--q-ink2,#5b554d)">{{ t.desc }}</span>
+                      <sc-if value="{{ t.isWrite }}"><span style="flex:none; padding:2px 6px; border-radius:4px; background:var(--q-soft,#ebe3f5); font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--q-acc,#7a4fba)">writes</span></sc-if>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="font-size:14px; font-weight:500">Folders apps can see</div>
+                <div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Hidden folders don't show up in listings or search results.</div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:12px"><sc-for list="{{ mcpFolderOpts }}" as="o"><button onClick="{{ o.onClick }}" style="height:28px; padding:0 10px; border:1px solid {{ o.border }}; border-radius:7px; background:transparent; font-family:'IBM Plex Mono', monospace; font-size:12px; color:{{ o.color }}; text-decoration:{{ o.deco }}; white-space:nowrap; cursor:default">{{ o.label }}</button></sc-for></div>
+              </div>
+              <sc-if value="{{ mcpWrite }}">
+                <div style="display:flex; align-items:center; gap:24px; padding:16px 0; border-top:1px solid var(--q-line,#e1dbcf)">
+                  <div style="flex:1; min-width:0"><div style="font-size:14px; font-weight:500">Ask before changes</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Quire shows the change and waits for you to approve it.</div></div>
+                  <button onClick="{{ mcpConfirmToggle }}" style="width:36px; height:20px; flex:none; display:flex; align-items:center; justify-content:{{ mcpConfirmJustify }}; padding:2px; border:0; border-radius:10px; background:{{ mcpConfirmBg }}; cursor:default; transition:background .15s"><span style="width:16px; height:16px; border-radius:50%; background:#ffffff; box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></button>
+                </div>
+              </sc-if>
+              <div style="padding:16px 0 4px; border-top:1px solid var(--q-line,#e1dbcf)">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+                  <div style="min-width:0"><div style="font-size:14px; font-weight:500">Client configuration</div><div style="margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--q-mute,#776f64)">Paste this into the AI app's MCP settings.</div></div>
+                  <button onClick="{{ copyMcp }}" style="height:30px; padding:0 12px; flex:none; border:1px solid var(--q-line,#e1dbcf); border-radius:7px; background:transparent; font-size:12.5px; white-space:nowrap; cursor:default" style-hover="background:var(--q-hover,rgba(70,50,20,.06))">{{ mcpCopyLabel }}</button>
+                </div>
+                <pre style="margin:12px 0 0; padding:12px 14px; border-radius:8px; background:var(--q-code,#efe9de); font-family:'IBM Plex Mono', monospace; font-size:11.5px; line-height:1.6; color:var(--q-ink2,#5b554d); overflow-x:auto; white-space:pre">{{ mcpConfig }}</pre>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:12px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--q-mute,#776f64)"><span style="width:6px; height:6px; flex:none; border-radius:50%; background:var(--q-acc,#7a4fba)"></span><span>{{ mcpStatus }}</span></div>
+              </div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{ secKeys }}">
+            <sc-for list="{{ shortcutRows }}" as="sr">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:11px 0; border-top:1px solid var(--q-line,#e1dbcf); font-size:13.5px">
+                <span>{{ sr.label }}</span>
+                <span style="padding:2px 7px; border:1px solid var(--q-line,#e1dbcf); border-bottom-width:2px; border-radius:5px; background:var(--q-bg,#f8f5ef); font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--q-ink2,#5b554d); white-space:nowrap">{{ sr.kbd }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;platform&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;neutral&quot;,&quot;mac&quot;,&quot;windows&quot;],&quot;default&quot;:&quot;neutral&quot;,&quot;tsType&quot;:&quot;'neutral'|'mac'|'windows'&quot;,&quot;section&quot;:&quot;Window&quot;},&quot;framed&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Window&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;vault&quot;,&quot;welcome&quot;],&quot;default&quot;:&quot;vault&quot;,&quot;tsType&quot;:&quot;'vault'|'welcome'&quot;,&quot;section&quot;:&quot;Window&quot;}}">
+class Component extends DCLogic {
+  C = { bg: 'var(--q-bg,#f8f5ef)', side: 'var(--q-side,#efebe3)', ink: 'var(--q-ink,#2a2723)', ink2: 'var(--q-ink2,#5b554d)', mute: 'var(--q-mute,#776f64)', mark: 'var(--q-mark,#b2a999)', line: 'var(--q-line,#e1dbcf)', hover: 'var(--q-hover,rgba(70,50,20,.06))', act: 'var(--q-act,rgba(70,50,20,.09))', acc: 'var(--q-acc,#7a4fba)', soft: 'var(--q-soft,#ebe3f5)', code: 'var(--q-code,#efe9de)' };
+  rootRef = React.createRef(); taRef = React.createRef(); scRef = React.createRef(); hlRef = React.createRef();
+  palRef = React.createRef(); palListRef = React.createRef(); searchRef = React.createRef(); renameRef = React.createRef(); newVaultRef = React.createRef();
+  state = this.initState();
+
+  isMac() { const p = this.props.platform ?? 'neutral'; if (p === 'mac') return true; if (p === 'windows') return false; return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || ''); }
+  k(...keys) { const mac = this.isMac(); const map = mac ? { Mod: '⌘', Shift: '⇧', Alt: '⌥' } : { Mod: 'Ctrl', Shift: 'Shift', Alt: 'Alt' }; const parts = keys.map(x => map[x] || (x.length === 1 ? x.toUpperCase() : x)); return mac ? parts.join('') : parts.join('+'); }
+  modClick() { return (this.isMac() ? '⌘' : 'Ctrl') + '-click'; }
+
+  sampleVault() {
+    const k = (...a) => this.k(...a), mc = this.modClick(), F = {};
+    F['Welcome.md'] = `# Welcome to Quire
+
+Quire edits a folder of plain Markdown files. Each note is a \`.md\` file on your disk, so any other app can open it, and it will still open in twenty years.
+
+## The basics
+
+- Write in Markdown. ${k('Mod', 'E')} switches between source and preview.
+- Link notes with double brackets, like [[Reading list]] or [[On slow software]]. ${mc} a link to follow it.
+- Tag anything with a hash, like #idea or #todo.
+- ${k('Mod', 'O')} jumps to any note. ${k('Mod', 'P')} lists every command.
+
+## Try it
+
+- [x] Open this note
+- [ ] Rename it by clicking its name above
+- [ ] Turn on focus mode with ${k('Mod', '.')}
+- [ ] Switch to the dark theme in settings
+
+> A link to a note that doesn't exist yet, like [[Someday]], creates it when you follow it.
+`;
+    F['Ideas.md'] = `# Ideas
+
+A dumping ground. Anything worth keeping moves into its own note.
+
+- A reading lamp that dims with the sunset #idea
+- Why old text editors still feel fast: [[On slow software]]
+- Try a three sisters bed next spring, see [[Garden plan]]
+- Keep a log of every book abandoned halfway #reading
+- Make the [[Sync protocol]] doc readable by someone who isn't me
+`;
+    F['Reading list.md'] = `# Reading list
+
+#reading
+
+## Now
+
+- *The Peregrine* by J. A. Baker
+- *A Pattern Language* by Christopher Alexander
+
+## Next
+
+- *The Mushroom at the End of the World* by Anna Lowenhaupt Tsing
+- *Seeing Like a State* by James C. Scott
+
+## Finished this year
+
+- [x] *Piranesi* by Susanna Clarke
+- [x] *The Overstory* by Richard Powers
+- [x] *Braiding Sweetgrass* by Robin Wall Kimmerer
+`;
+    F['Drafts/On slow software.md'] = `# On slow software
+
+#draft
+
+The text editor I used in 2004 opened before I could lift my finger off the trackpad. The one I use now shows a splash screen. It has more features than I will ever touch, and I pay for every one of them in the half-second I wait each morning.
+
+Some of this is nostalgia. Most of it isn't. A tool that responds instantly disappears, and a tool that hesitates reminds you it exists. When you are trying to write, the reminder costs more than the wait.
+
+## What makes a tool feel fast
+
+Three things, roughly in order:
+
+1. **Input latency.** The gap between a keypress and a letter on screen. Under about 30 ms it feels like paper.
+2. **Startup.** If opening a note takes longer than remembering why you wanted it, you stop opening notes.
+3. **Predictability.** The same command does the same thing, in the same place, every time.
+
+None of these appear on a feature list, which is why they are the first things traded away.
+
+## Plain files
+
+Software stays fast when it does less, and the simplest way to do less is to keep your work in a format that needs no software at all. A Markdown file is readable in any editor written in the last forty years, and it will be readable in the next forty.
+
+> The best file format is one you could parse with a pencil.
+
+## To do
+
+- [ ] Find the latency numbers from the [[Sync protocol]] tests
+- [ ] Cut the second section by half
+- [ ] Ask Maya to read it #todo
+`;
+    F['Docs/Sync protocol.md'] = `# Sync protocol
+
+#spec
+
+How notes move between devices. Version 2, replacing the polling approach from last spring.
+
+## Overview
+
+Each device keeps a local log of changes. When two devices meet, they exchange the parts of their logs the other hasn't seen, then apply them in order.
+
+## Change record
+
+\`\`\`json
+{
+  "path": "Drafts/On slow software.md",
+  "hash": "9f2c41e",
+  "parent": "71ab0d3",
+  "device": "laptop",
+  "time": "2026-11-11T21:04:17Z"
+}
+\`\`\`
+
+## Conflicts
+
+When two devices edit the same file from the same parent, the later change wins. The earlier version is saved beside it as \`name (conflict laptop).md\`. Nothing is merged automatically.
+
+## Open questions
+
+- [ ] Should renames be their own record type? #todo
+- [ ] Measure apply time on a folder of 10,000 notes
+- [x] Drop support for the v1 log format
+
+See also [[About this folder]].
+`;
+    F['Docs/About this folder.md'] = `# About this folder
+
+Everything here is plain Markdown. Nothing depends on Quire.
+
+## Layout
+
+- \`Journal/\` holds one file per day, named \`YYYY-MM-DD.md\`
+- \`Drafts/\` is writing in progress
+- \`Docs/\` is reference material and specs
+- \`Projects/\` is anything with a deadline
+
+## Conventions
+
+- Tags are lowercase: #journal, #draft, #spec, #idea, #reading
+- Link generously. A link to a missing note, like [[Someday]], is fine. It becomes a note when you follow it.
+`;
+    F['Journal/2026-11-12.md'] = `# Thursday 12 November
+
+#journal
+
+Cold, bright morning. Frost on the shed roof until ten.
+
+Spent the first hour on [[On slow software]]. The second section still reads like a list of complaints. Maybe it should just be a list.
+
+- [x] Order seed potatoes
+- [ ] Reply to the allotment committee
+- [ ] Finish the conflicts section of [[Sync protocol]] #todo
+`;
+    F['Journal/2026-11-11.md'] = `# Wednesday 11 November
+
+#journal
+
+Long walk along the canal after lunch. Eleven herons, which might be a record.
+
+Read forty pages of *The Peregrine*. Baker writes about a hawk the way other people write about weather. Added two more books to the [[Reading list]].
+`;
+    F['Projects/Garden plan.md'] = `# Garden plan
+
+#project
+
+## Spring beds
+
+- **Bed 1:** potatoes, earlies then second earlies
+- **Bed 2:** three sisters, so corn, beans and squash together
+- **Bed 3:** brassicas under netting
+
+## Before March
+
+- [x] Order seed potatoes
+- [ ] Repair the north fence
+- [ ] Build a second compost bay
+- [ ] Ask about the water butt at the next committee meeting
+
+Ideas for later live in [[Ideas]].
+`;
+    const tabs = ['Drafts/On slow software.md', 'Journal/2026-11-12.md', 'Welcome.md'];
+    return { name: 'Field Notes', path: '~/Documents/Field Notes', folders: ['Docs', 'Drafts', 'Journal', 'Projects'], files: F, session: { tabs, active: tabs[0] } };
+  }
+
+  initState() {
+    const sv = this.sampleVault();
+    const base = {
+      screen: (this.props.startScreen ?? 'vault') === 'welcome' ? 'welcome' : 'vault',
+      vaults: { fieldnotes: sv }, vaultId: 'fieldnotes',
+      tabs: sv.session.tabs.slice(), active: sv.session.active, recent: sv.session.tabs.slice(),
+      expanded: { Drafts: true, Journal: true },
+      mode: 'source', leftOpen: true, rightOpen: true, leftPanel: 'files', query: '',
+      palette: null, settingsOpen: false, setSec: 'appearance', focus: false, vaultMenu: false,
+      renaming: false, renameVal: '', creating: null, prevHead: 0,
+      sel: { start: 0, end: 0 }, vw: window.innerWidth, mqDark: false,
+      settings: { theme: 'light', font: 'plex', size: 16, width: 'readable', previewFont: 'serif', spellcheck: false, continueLists: true, dimFocus: true, typewriter: true, updateLinks: true, newFolder: '', sync: { provider: 'none', cfg: {}, when: 'save', encrypt: false, pass: '', connected: false, lastSync: null }, mcp: { enabled: false, transport: 'stdio', port: '3917', access: 'read', confirm: true, hidden: [], token: this.newToken(), tools: { list_notes: true, read_note: true, search_notes: true, get_backlinks: true, create_note: true, update_note: true, rename_note: false, delete_note: false } } },
+      reveal: {}, syncStatus: { state: 'idle' }, syncBusy: false, mcpCopied: false
+    };
+    try {
+      const saved = JSON.parse(localStorage.getItem('quire-proto-v1') || 'null');
+      if (saved && saved.vaults) {
+        ['vaults', 'vaultId', 'tabs', 'active', 'recent', 'expanded', 'mode', 'leftOpen', 'rightOpen'].forEach(key => { if (saved[key] !== undefined) base[key] = saved[key]; });
+        base.settings = Object.assign({}, base.settings, saved.settings || {});
+      }
+    } catch (e) {}
+    try { base.mqDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+    if (!base.vaults[base.vaultId]) base.vaultId = Object.keys(base.vaults)[0];
+    return base;
+  }
+
+  componentDidMount() {
+    this._onKey = e => this.onKey(e);
+    this._onResize = () => this.setState({ vw: window.innerWidth });
+    window.addEventListener('keydown', this._onKey, true);
+    window.addEventListener('resize', this._onResize);
+    try { this._mq = window.matchMedia('(prefers-color-scheme: dark)'); this._onMq = e => this.setState({ mqDark: e.matches }); this._mq.addEventListener('change', this._onMq); } catch (e) {}
+    this.applyTheme();
+    this._tick = setInterval(() => { const sy = this.state.settings.sync; if (sy && sy.connected) this.forceUpdate(); }, 30000);
+    if (this.state.mode === 'source' && this.state.screen === 'vault') this.pendingSel = { start: 0, end: 0 };
+    this._prev = this.state; this._prevProps = this.props;
+    this.forceUpdate();
+  }
+  componentWillUnmount() {
+    window.removeEventListener('keydown', this._onKey, true);
+    window.removeEventListener('resize', this._onResize);
+    clearInterval(this._tick); clearTimeout(this._syncT); clearTimeout(this._autoT);
+    try { this._mq.removeEventListener('change', this._onMq); } catch (e) {}
+  }
+  componentDidUpdate() {
+    const s = this.state, ps = this._prev || s, pp = this._prevProps || this.props;
+    this._prev = s; this._prevProps = this.props;
+    if (pp.startScreen !== this.props.startScreen) this.setState({ screen: this.props.startScreen === 'welcome' ? 'welcome' : 'vault' });
+    this.applyTheme();
+    this.save();
+    if (s.palette && !ps.palette) setTimeout(() => this.palRef.current && this.palRef.current.focus(), 0);
+    if (s.palette && ps.palette && s.palette.idx !== ps.palette.idx) this.scrollPalItem();
+    if (s.renaming && !ps.renaming) setTimeout(() => { const el = this.renameRef.current; if (el) { el.focus(); el.select(); } }, 0);
+    if (s.creating && !ps.creating) setTimeout(() => this.newVaultRef.current && this.newVaultRef.current.focus(), 0);
+    if (this._focusSearch) { const el = this.searchRef.current; if (el) { this._focusSearch = false; el.focus(); el.select(); } }
+    const sc = this.scRef.current, ta = this.taRef.current;
+    if (s.active !== ps.active && sc && !this.pendingSel) sc.scrollTop = 0;
+    if (this.pendingSel && ta && !s.renaming && !s.palette) {
+      const p = this.pendingSel; this.pendingSel = null;
+      ta.focus({ preventScroll: true }); ta.setSelectionRange(p.start, p.end);
+      if (p.line != null) this.scrollToLine(p.line); else if (!p.keep && sc) sc.scrollTop = 0;
+      if (s.sel.start !== p.start || s.sel.end !== p.end) this.setState({ sel: { start: p.start, end: p.end } });
+    } else if (this.pendingSel && s.mode === 'preview') this.pendingSel = null;
+    if (ta && ta.scrollTop) ta.scrollTop = 0;
+    if (this._typed && ta) { this._typed = false; this.ensureCaret(); }
+  }
+
+  isDark() { const t = this.state.settings.theme; return t === 'dark' || (t === 'system' && this.state.mqDark); }
+  applyTheme() {
+    const el = this.rootRef.current; if (!el) return;
+    const dark = this.isDark(); if (this._themeEl === el && this._dark === dark) return;
+    this._themeEl = el; this._dark = dark;
+    const L = { desk: '#dcd6ca', bg: '#f8f5ef', side: '#efebe3', ink: '#2a2723', ink2: '#5b554d', mute: '#776f64', mark: '#b2a999', line: '#e1dbcf', hover: 'rgba(70,50,20,.06)', act: 'rgba(70,50,20,.09)', acc: '#7a4fba', soft: '#ebe3f5', code: '#efe9de', err: '#b0432f' };
+    const D = { desk: '#0f0e0d', bg: '#1f1d1a', side: '#181715', ink: '#e9e3d8', ink2: '#bdb5a7', mute: '#948c7f', mark: '#5f584e', line: '#322e28', hover: 'rgba(255,240,210,.05)', act: 'rgba(255,240,210,.08)', acc: '#b597e8', soft: '#2f2839', code: '#27241f', err: '#e8907c' };
+    const v = dark ? D : L;
+    for (const key in v) el.style.setProperty('--q-' + key, v[key]);
+    document.body.style.background = v.desk;
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  }
+  save() {
+    clearTimeout(this._saveT);
+    this._saveT = setTimeout(() => { const s = this.state; try { localStorage.setItem('quire-proto-v1', JSON.stringify({ vaults: s.vaults, vaultId: s.vaultId, tabs: s.tabs, active: s.active, recent: s.recent, expanded: s.expanded, mode: s.mode, leftOpen: s.leftOpen, rightOpen: s.rightOpen, settings: s.settings })); } catch (e) {} }, 300);
+  }
+
+  base(p) { return p.slice(p.lastIndexOf('/') + 1).replace(/\.md$/i, ''); }
+  dir(p) { const i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); }
+  join(d, n) { return d ? d + '/' + n : n; }
+  vault() { return this.state.vaults[this.state.vaultId]; }
+  files() { return this.vault().files; }
+  withFiles(s, files, folders) { const v = s.vaults[s.vaultId]; return { ...s.vaults, [s.vaultId]: { ...v, files, folders: folders || v.folders } }; }
+  buildNames(files) {
+    if (this._namesFor === files) return; this._namesFor = files; const m = {};
+    Object.keys(files).forEach(p => { const b = this.base(p).toLowerCase(); if (!m[b]) m[b] = p; m[p.replace(/\.md$/i, '').toLowerCase()] = p; });
+    this._names = m;
+  }
+  resolve(name) { return (this._names || {})[(name || '').trim().toLowerCase()] || null; }
+  fontStack(f) { return ({ plex: "'IBM Plex Mono', ui-monospace, Menlo, monospace", courier: "'Courier Prime', 'Courier New', monospace", spline: "'Spline Sans Mono', ui-monospace, monospace" })[f || this.state.settings.font] || "'IBM Plex Mono', ui-monospace, monospace"; }
+  folderList(vault) { const set = new Set(vault.folders || []); Object.keys(vault.files).forEach(p => { const d = this.dir(p); if (d) set.add(d); }); return [...set].sort(); }
+
+  openFile(path, sel) {
+    if (sel || path !== this.state.active) this.pendingSel = sel || { start: 0, end: 0 };
+    this.setState(s => {
+      const tabs = s.tabs.includes(path) ? s.tabs : [...s.tabs, path];
+      const exp = { ...s.expanded }; let d = this.dir(path); while (d) { exp[d] = true; d = this.dir(d); }
+      return { tabs, active: path, expanded: exp, recent: [path, ...s.recent.filter(x => x !== path)].slice(0, 30), palette: null, renaming: false, vaultMenu: false, mode: sel && sel.forceSource ? 'source' : s.mode, prevHead: 0 };
+    });
+  }
+  closeTab(p) {
+    this.setState(s => { const i = s.tabs.indexOf(p); const tabs = s.tabs.filter(x => x !== p); let active = s.active; if (active === p) active = tabs[Math.min(i, tabs.length - 1)] || null; return { tabs, active, renaming: false, focus: active ? s.focus : false }; });
+  }
+  toggleFolder(path) { this.setState(s => ({ expanded: { ...s.expanded, [path]: !s.expanded[path] } })); }
+  newNote(name) {
+    const s = this.state, v = this.vault(), files = v.files;
+    let folder = s.settings.newFolder || ''; if (folder && !this.folderList(v).includes(folder)) folder = '';
+    const bn = (name || 'Untitled').replace(/[\\/:]/g, '-').trim() || 'Untitled';
+    let p = this.join(folder, bn + '.md'), n = 2; while (files[p] != null) p = this.join(folder, `${bn} ${n++}.md`);
+    const content = name ? `# ${bn}\n\n` : '';
+    this.setState(st => ({ vaults: this.withFiles(st, { ...st.vaults[st.vaultId].files, [p]: content }), screen: 'vault', settingsOpen: false }));
+    this.openFile(p, { start: content.length, end: content.length });
+    if (!name) this.setState({ renaming: true, renameVal: this.base(p), mode: 'source', focus: false });
+  }
+  deleteNote() {
+    const p = this.state.active; if (!p) return;
+    this.setState(s => { const f = { ...s.vaults[s.vaultId].files }; delete f[p]; const i = s.tabs.indexOf(p); const tabs = s.tabs.filter(x => x !== p); return { vaults: this.withFiles(s, f), tabs, active: tabs[Math.min(i, tabs.length - 1)] || null, recent: s.recent.filter(x => x !== p), focus: false }; });
+  }
+  openToday() {
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    const p = `Journal/${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.md`;
+    const existing = this.files()[p];
+    if (existing == null) {
+      const c = `# ${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}\n\n#journal\n\n`;
+      this.setState(s => ({ vaults: this.withFiles(s, { ...s.vaults[s.vaultId].files, [p]: c }, Array.from(new Set([...(s.vaults[s.vaultId].folders || []), 'Journal']))) }));
+      this.openFile(p, { start: c.length, end: c.length, forceSource: true });
+    } else this.openFile(p, { start: existing.length, end: existing.length, forceSource: true });
+  }
+  openLink(name) { const t = (name || '').split('|')[0].trim(); if (!t) return; const p = this.resolve(t); if (p) this.openFile(p); else this.newNote(t); }
+  goWelcome() { this.setState(s => { const v = s.vaults[s.vaultId]; return { screen: 'welcome', vaults: { ...s.vaults, [s.vaultId]: { ...v, session: { tabs: s.tabs, active: s.active } } }, palette: null, settingsOpen: false, vaultMenu: false, focus: false, renaming: false }; }); }
+  openVault(id) {
+    this.setState(s => { const v = s.vaults[id]; const ses = v.session || { tabs: [], active: null }; const tabs = (ses.tabs || []).filter(p => v.files[p] != null); return { vaultId: id, screen: 'vault', tabs, active: v.files[ses.active] != null ? ses.active : (tabs[0] || null), recent: tabs.slice(), creating: null, query: '', leftPanel: 'files', focus: false }; });
+    this.pendingSel = { start: 0, end: 0 };
+  }
+  createVault() {
+    const name = ((this.state.creating && this.state.creating.name) || '').trim().replace(/[\\/:]/g, '-') || 'Untitled notebook';
+    const id = 'v' + Date.now();
+    this.setState(s => ({ vaults: { ...s.vaults, [id]: { name, path: '~/Documents/' + name, folders: [], files: {} } } }));
+    this.openVault(id);
+  }
+  resetSample() {
+    const sv = this.sampleVault();
+    this.setState(s => ({ vaults: { ...s.vaults, fieldnotes: sv }, vaultId: 'fieldnotes', screen: 'vault', tabs: sv.session.tabs.slice(), active: sv.session.active, recent: sv.session.tabs.slice(), expanded: { Drafts: true, Journal: true }, settingsOpen: false, palette: null, focus: false }));
+    this.pendingSel = { start: 0, end: 0 };
+  }
+  toggleMode() { if (!this.state.active) return; const toSource = this.state.mode === 'preview'; this.setState(s => ({ mode: s.mode === 'source' ? 'preview' : 'source' })); if (toSource) this.focusEditor(); }
+  setMode(m) { if (m !== this.state.mode) this.toggleMode(); }
+  toggleFocus() { if (!this.state.active) return; this.setState(s => ({ focus: !s.focus, palette: null })); if (this.state.mode === 'source') this.focusEditor(); }
+  openSearch() { this._focusSearch = true; this.setState({ leftOpen: true, leftPanel: 'search', focus: false, palette: null, settingsOpen: false }); }
+  searchTag(tag) { this.setState({ leftOpen: true, leftPanel: 'search', query: '#' + tag, focus: false, palette: null }); }
+  openPalette(mode) { this.setState({ palette: { mode, q: '', idx: 0 }, vaultMenu: false, settingsOpen: false }); }
+  setSetting(key, v) { this.setState(s => ({ settings: { ...s.settings, [key]: v } })); }
+  focusEditor() { const p = this.state.sel; this.pendingSel = { start: p.start, end: p.end, keep: true }; }
+
+  startRename = () => { if (this.state.active) this.setState({ renaming: true, renameVal: this.base(this.state.active) }); };
+  commitRename = () => {
+    const s = this.state; if (!s.renaming) return; const old = s.active;
+    if (!old) return this.setState({ renaming: false });
+    const val = s.renameVal.replace(/[\\/:]/g, '-').trim(), np = this.join(this.dir(old), val + '.md'), files = this.files();
+    if (!val || np === old || files[np] != null) { this.setState({ renaming: false }); this.focusEditor(); return; }
+    const oldBase = this.base(old).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('\\[\\[' + oldBase + '(\\|[^\\]]*)?\\]\\]', 'gi');
+    const nf = {};
+    Object.keys(files).forEach(p => { let t = files[p]; if (s.settings.updateLinks) t = t.replace(re, (m0, alias) => '[[' + val + (alias || '') + ']]'); nf[p === old ? np : p] = t; });
+    this.setState(st => ({ vaults: this.withFiles(st, nf), tabs: st.tabs.map(x => x === old ? np : x), recent: st.recent.map(x => x === old ? np : x), active: np, renaming: false }));
+    this.focusEditor();
+  };
+
+  onKey(e) {
+    const s = this.state;
+    if (e.key === 'Escape') {
+      if (s.palette) { e.preventDefault(); this.setState({ palette: null }); if (s.active && s.mode === 'source') this.focusEditor(); return; }
+      if (s.settingsOpen) { e.preventDefault(); this.setState({ settingsOpen: false }); return; }
+      if (s.vaultMenu) { this.setState({ vaultMenu: false }); return; }
+      if (s.renaming) return;
+      if (s.creating) { this.setState({ creating: null }); return; }
+      if (s.focus) { e.preventDefault(); this.setState({ focus: false }); return; }
+      return;
+    }
+    const mod = e.metaKey || e.ctrlKey; if (!mod || s.screen !== 'vault') return;
+    const key = e.key.toLowerCase(); let fn = null;
+    if (e.shiftKey && key === 'f') fn = () => this.openSearch();
+    else if (!e.shiftKey && !e.altKey) fn = ({ o: () => this.openPalette('files'), p: () => this.openPalette('commands'), e: () => this.toggleMode(), ',': () => this.setState(x => ({ settingsOpen: !x.settingsOpen, palette: null })), '.': () => this.toggleFocus(), '\\': () => this.setState(x => ({ leftOpen: !x.leftOpen })), n: () => this.newNote() })[key];
+    if (fn) { e.preventDefault(); e.stopPropagation(); fn(); }
+  }
+
+  onText = (e) => { const t = e.target, val = t.value, a = t.selectionStart, b = t.selectionEnd, p = this.state.active; this._typed = true;
+    const sy = this.state.settings.sync, auto = !!(sy && sy.provider !== 'none' && sy.connected && sy.when === 'save');
+    if (auto) { clearTimeout(this._autoT); this._autoT = setTimeout(() => { this.setSync({ lastSync: Date.now() }); this.setState({ syncBusy: false }); }, 1500); }
+    this.setState(s => ({ vaults: this.withFiles(s, { ...s.vaults[s.vaultId].files, [p]: val }), sel: { start: a, end: b }, syncBusy: auto ? true : s.syncBusy })); };
+  onSel = (e) => { const a = e.target.selectionStart, b = e.target.selectionEnd, c = this.state.sel; if (a !== c.start || b !== c.end) this.setState({ sel: { start: a, end: b } }); };
+  onTaScroll = (e) => { if (e.target.scrollTop) e.target.scrollTop = 0; };
+  insert(ta, str) {
+    ta.focus(); let ok = false;
+    try { ok = document.execCommand(str ? 'insertText' : 'delete', false, str); } catch (x) {}
+    if (!ok) { ta.setRangeText(str, ta.selectionStart, ta.selectionEnd, 'end'); const val = ta.value, p = this.state.active; this.setState(s => ({ vaults: this.withFiles(s, { ...s.vaults[s.vaultId].files, [p]: val }) })); }
+  }
+  wrap(ta, mk) { const a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b); this.insert(ta, mk + sel + mk); ta.setSelectionRange(a + mk.length, a + mk.length + sel.length); }
+  onTaKey = (e) => {
+    this._typed = true;
+    const mod = e.metaKey || e.ctrlKey, ta = e.target;
+    if (mod && !e.shiftKey && (e.key === 'b' || e.key === 'i')) { e.preventDefault(); this.wrap(ta, e.key === 'b' ? '**' : '*'); return; }
+    if (e.key === 'Tab') { e.preventDefault(); if (!e.shiftKey) this.insert(ta, '  '); return; }
+    if (e.key === 'Enter' && !e.shiftKey && !mod && this.state.settings.continueLists && ta.selectionStart === ta.selectionEnd) {
+      const v = ta.value, pos = ta.selectionStart, ls = v.lastIndexOf('\n', pos - 1) + 1, le = v.indexOf('\n', pos);
+      const line = v.slice(ls, le < 0 ? v.length : le);
+      const m = line.match(/^(\s*)([-*+]|(\d+)([.)]))(\s+)(\[[ xX]\]\s+)?(.*)$/);
+      if (m && pos - ls >= line.length - m[7].length) {
+        e.preventDefault();
+        if (!m[7].trim()) { ta.setSelectionRange(ls, ls + line.length); this.insert(ta, ''); }
+        else { const mk = m[3] ? (parseInt(m[3], 10) + 1) + m[4] : m[2]; this.insert(ta, '\n' + m[1] + mk + m[5] + (m[6] ? '[ ] ' : '')); }
+      }
+    }
+  };
+  onTaClick = (e) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const ta = e.target, pos = ta.selectionStart, v = ta.value, re = /\[\[([^\]\n]+)\]\]/g; let m;
+    while ((m = re.exec(v))) { if (pos >= m.index && pos <= m.index + m[0].length) { e.preventDefault(); this.openLink(m[1]); return; } if (m.index > pos) break; }
+  };
+  onColDown = (e) => { if (e.target !== e.currentTarget) return; const ta = this.taRef.current; if (!ta) return; e.preventDefault(); ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); };
+  onScroll = () => {
+    if (this.state.mode !== 'preview' || this._raf) return;
+    this._raf = requestAnimationFrame(() => {
+      this._raf = null; const sc = this.scRef.current; if (!sc) return;
+      const top = sc.getBoundingClientRect().top + 100; let cur = 0;
+      sc.querySelectorAll('[data-h]').forEach(el => { if (el.getBoundingClientRect().top <= top) cur = +el.getAttribute('data-h'); });
+      if (cur !== this.state.prevHead) this.setState({ prevHead: cur });
+    });
+  };
+  ensureCaret() {
+    const ta = this.taRef.current, sc = this.scRef.current, hl = this.hlRef.current;
+    if (!ta || !sc || !hl || document.activeElement !== ta) return;
+    const v = ta.value, pos = ta.selectionEnd; let li = 0; for (let i = 0; i < pos; i++) if (v.charCodeAt(i) === 10) li++;
+    const div = hl.children[li]; if (!div) return;
+    const ls = v.lastIndexOf('\n', pos - 1) + 1, le = v.indexOf('\n', pos), len = (le < 0 ? v.length : le) - ls;
+    const r = div.getBoundingClientRect(), sr = sc.getBoundingClientRect(), lh = parseFloat(getComputedStyle(ta).lineHeight) || 28;
+    const y = r.top + (len ? (pos - ls) / len : 0) * Math.max(0, r.height - lh);
+    if (this.state.focus && this.state.settings.typewriter) { sc.scrollTop += (y + lh / 2) - (sr.top + sr.height * 0.42); return; }
+    if (y + lh > sr.bottom - 48) sc.scrollTop += y + lh - (sr.bottom - 48); else if (y < sr.top + 24) sc.scrollTop -= sr.top + 24 - y;
+  }
+  scrollToLine(li) { const sc = this.scRef.current, hl = this.hlRef.current; if (!sc || !hl || !hl.children[li]) return; const r = hl.children[li].getBoundingClientRect(), sr = sc.getBoundingClientRect(); sc.scrollTop += r.top - sr.top - sr.height * 0.25; }
+  jump(line) {
+    if (this.state.mode === 'source') {
+      const v = this.files()[this.state.active] || ''; let pos = 0;
+      for (let i = 0; i < line; i++) { const n = v.indexOf('\n', pos); if (n < 0) break; pos = n + 1; }
+      this.pendingSel = { start: pos, end: pos, line }; this.forceUpdate();
+    } else { const sc = this.scRef.current, el = sc && sc.querySelector('[data-line="' + line + '"]'); if (el) sc.scrollTo({ top: el.offsetTop - 32, behavior: 'smooth' }); }
+  }
+  toggleTask(line) {
+    const p = this.state.active;
+    this.setState(s => { const f = s.vaults[s.vaultId].files, lines = f[p].split('\n'); lines[line] = lines[line].replace(/\[([ xX])\]/, (m0, c) => c === ' ' ? '[x]' : '[ ]'); return { vaults: this.withFiles(s, { ...f, [p]: lines.join('\n') }) }; });
+  }
+
+  search(files, q) {
+    const ql = q.toLowerCase(), out = [];
+    Object.keys(files).forEach(p => {
+      const lines = files[p].split('\n'), hits = []; let off = 0;
+      lines.forEach((ln, li) => { const low = ln.toLowerCase(); let i = low.indexOf(ql); while (i >= 0) { hits.push({ li, i, pos: off + i, ln }); i = low.indexOf(ql, i + ql.length); } off += ln.length + 1; });
+      const nameHit = this.base(p).toLowerCase().includes(ql);
+      if (hits.length || nameHit) out.push({ p, hits, nameHit });
+    });
+    return out.sort((a, b) => (b.nameHit - a.nameHit) || (b.hits.length - a.hits.length) || a.p.localeCompare(b.p));
+  }
+  tags(files) {
+    const m = {};
+    Object.keys(files).forEach(p => { const t = files[p].replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, ''); const seen = new Set(); (t.match(/(?:^|[\s(])#[A-Za-z][\w/-]*/g) || []).forEach(x => { const tag = x.trim().replace(/^\(/, '').slice(1).toLowerCase(); if (!seen.has(tag)) { seen.add(tag); m[tag] = (m[tag] || 0) + 1; } }); });
+    return Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b)).map(t => ({ tag: t, n: m[t] }));
+  }
+  headings(text) { const out = []; let fence = false; text.split('\n').forEach((ln, i) => { if (/^\s*```/.test(ln)) { fence = !fence; return; } if (fence) return; const m = ln.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/); if (m) out.push({ level: m[1].length, text: m[2].replace(/\*\*|__|[*_`]|\[\[|\]\]/g, ''), line: i }); }); return out; }
+  backlinks(files, active) {
+    const b = this.base(active).toLowerCase(), full = active.replace(/\.md$/i, '').toLowerCase(), out = [];
+    Object.keys(files).forEach(p => { if (p === active) return; let n = 0; (files[p].match(/\[\[([^\]\n]+)\]\]/g) || []).forEach(x => { const t = x.slice(2, -2).split('|')[0].trim().toLowerCase(); if (t === b || t === full) n++; }); if (n) out.push({ p, n }); });
+    return out;
+  }
+  words(t) { const m = t.replace(/```[^\n]*\n[\s\S]*?```/g, ' ').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu); return m ? m.length : 0; }
+  paraRange(text, pos) {
+    const lines = text.split('\n'); let li = 0, acc = 0;
+    for (; li < lines.length - 1; li++) { if (pos <= acc + lines[li].length) break; acc += lines[li].length + 1; }
+    if (!lines[li] || !lines[li].trim()) return [li, li];
+    let a = li, b = li; while (a > 0 && lines[a - 1].trim()) a--; while (b < lines.length - 1 && lines[b + 1].trim()) b++;
+    return [a, b];
+  }
+  fuzzy(q, s) {
+    const ql = q.toLowerCase(), sl = s.toLowerCase(), sub = sl.indexOf(ql);
+    if (sub >= 0) { const idx = []; for (let i = 0; i < ql.length; i++) idx.push(sub + i); return { score: 1000 - sub * 2 - s.length * 0.1 + (sub === 0 ? 50 : 0), idx }; }
+    let j = 0, prev = -2, score = 0; const idx = [];
+    for (let i = 0; i < sl.length && j < ql.length; i++) { if (sl[i] === ql[j]) { idx.push(i); score += (i === prev + 1 ? 4 : 1) + (i === 0 || /[\s/_-]/.test(sl[i - 1]) ? 3 : 0); prev = i; j++; } }
+    return j < ql.length ? null : { score, idx };
+  }
+  segs(s, idx) {
+    const set = new Set(idx), out = []; let cur = null;
+    for (let i = 0; i < s.length; i++) { const hit = set.has(i); if (!cur || cur.hit !== hit) { cur = { t: '', hit }; out.push(cur); } cur.t += s[i]; }
+    return out.map(g => ({ t: g.t, c: g.hit ? this.C.acc : 'inherit', w: g.hit ? 600 : 'inherit' }));
+  }
+
+  providerDefs() {
+    return [
+      { id: 'none', name: 'Local only', kind: 'no sync' },
+      { id: 's3', name: 'Amazon S3', full: 'Amazon S3', kind: 'S3', regions: ['us-east-1', 'us-west-2', 'eu-west-1', 'eu-central-1', 'ap-southeast-1'], ep: c => `https://s3.${c.region}.amazonaws.com` },
+      { id: 'hetzner', name: 'Hetzner', full: 'Hetzner Object Storage', kind: 'Object Storage · S3', regions: [['fsn1', 'fsn1 · Falkenstein'], ['nbg1', 'nbg1 · Nuremberg'], ['hel1', 'hel1 · Helsinki']], ep: c => `https://${c.region}.your-objectstorage.com` },
+      { id: 'azure', name: 'Azure', full: 'Azure Blob Storage', kind: 'Blob Storage' },
+      { id: 'gcs', name: 'Google Cloud', full: 'Google Cloud Storage', kind: 'Cloud Storage' },
+      { id: 'r2', name: 'Cloudflare R2', full: 'Cloudflare R2', kind: 'S3-compatible', ep: c => `https://${c.accountId || '<account-id>'}.r2.cloudflarestorage.com` },
+      { id: 'b2', name: 'Backblaze B2', full: 'Backblaze B2', kind: 'S3-compatible', regions: ['us-west-004', 'us-east-005', 'eu-central-003'], ep: c => `https://s3.${c.region}.backblazeb2.com` },
+      { id: 'do', name: 'DigitalOcean', full: 'DigitalOcean Spaces', kind: 'Spaces · S3', regions: ['ams3', 'fra1', 'nyc3', 'sfo3', 'sgp1'], ep: c => `https://${c.region}.digitaloceanspaces.com` },
+      { id: 'wasabi', name: 'Wasabi', full: 'Wasabi', kind: 'S3-compatible', regions: ['us-east-1', 'eu-central-1', 'ap-northeast-1'], ep: c => `https://s3.${c.region}.wasabisys.com` },
+      { id: 'scaleway', name: 'Scaleway', full: 'Scaleway Object Storage', kind: 'S3-compatible', regions: ['fr-par', 'nl-ams', 'pl-waw'], ep: c => `https://s3.${c.region}.scw.cloud` },
+      { id: 'ovh', name: 'OVHcloud', full: 'OVHcloud Object Storage', kind: 'S3-compatible', regions: ['gra', 'sbg', 'de', 'uk', 'waw', 'bhs'], ep: c => `https://s3.${c.region}.io.cloud.ovh.net` },
+      { id: 'custom', name: 'Other', full: 'S3-compatible server', kind: 'MinIO, Garage, Ceph…' }
+    ];
+  }
+  syncSpec(pid, cfg) {
+    const P = this.providerDefs().find(p => p.id === pid); if (!P || pid === 'none') return [];
+    const out = [], f = (key, label, o) => out.push({ key, label, req: true, ...(o || {}) });
+    const val = (k, d) => cfg[k] != null && cfg[k] !== '' ? cfg[k] : d;
+    const prefix = () => f('prefix', 'Remote folder', { req: false, def: 'quire/' + this.vault().name + '/', hint: 'inside the bucket' });
+    if (pid === 'azure') {
+      f('account', 'Storage account', { ph: 'mynotesstorage' }); f('container', 'Container', { ph: 'notes' });
+      f('azAuth', 'Sign in with', { type: 'choice', wide: true, req: false, def: 'key', opts: [{ v: 'key', label: 'account key' }, { v: 'sas', label: 'SAS token' }] });
+      f('azKey', val('azAuth', 'key') === 'sas' ? 'SAS token' : 'Account key', { type: 'secret', wide: true }); prefix();
+      f('ep', 'Endpoint', { type: 'read', wide: true, req: false, value: `https://${val('account', '<account>')}.blob.core.windows.net/${val('container', '<container>')}` });
+      return out;
+    }
+    if (pid === 'gcs') {
+      f('bucket', 'Bucket', { ph: 'my-notes' }); prefix();
+      f('gcsAuth', 'Sign in with', { type: 'choice', wide: true, req: false, def: 'sa', opts: [{ v: 'sa', label: 'service account key' }, { v: 'hmac', label: 'HMAC keys' }] });
+      if (val('gcsAuth', 'sa') === 'sa') f('gcsJson', 'Service account key', { type: 'area', wide: true, hint: 'paste the JSON key file', ph: '{ "type": "service_account", "project_id": "…" }' });
+      else { f('hmacId', 'Access ID'); f('hmacSecret', 'Secret', { type: 'secret' }); }
+      f('ep', 'Endpoint', { type: 'read', wide: true, req: false, value: `https://storage.googleapis.com/${val('bucket', '<bucket>')}` });
+      return out;
+    }
+    if (P.regions) { const opts = P.regions.map(r => Array.isArray(r) ? { v: r[0], label: r[1] } : { v: r, label: r }); f('region', 'Region', { type: 'choice', wide: true, req: false, opts, def: opts[0].v }); }
+    if (pid === 'r2') f('accountId', 'Account ID', { wide: true, ph: 'from the R2 overview page' });
+    if (pid === 'custom') { f('endpoint', 'Endpoint', { wide: true, ph: 'https://minio.example.com:9000' }); f('region', 'Region', { req: false, def: 'us-east-1' }); f('addressing', 'Addressing', { type: 'choice', req: false, def: 'path', opts: [{ v: 'path', label: 'path-style' }, { v: 'vhost', label: 'virtual-hosted' }] }); }
+    f('bucket', pid === 'do' ? 'Space name' : 'Bucket', { ph: 'my-notes' }); prefix();
+    f('accessKey', pid === 'b2' ? 'Key ID' : 'Access key ID'); f('secretKey', pid === 'b2' ? 'Application key' : 'Secret access key', { type: 'secret' });
+    if (P.ep) f('ep', 'Endpoint', { type: 'read', wide: true, req: false, value: P.ep({ ...cfg, region: val('region', P.regions ? (Array.isArray(P.regions[0]) ? P.regions[0][0] : P.regions[0]) : '') }) });
+    return out;
+  }
+  newToken() { let t = 'qk_'; const a = 'abcdefghijkmnopqrstuvwxyz23456789'; for (let i = 0; i < 28; i++) t += a[Math.floor(Math.random() * a.length)]; return t; }
+  setMcp(patch) { this.setState(s => ({ settings: { ...s.settings, mcp: { ...s.settings.mcp, ...patch } } })); }
+  syncCfg() { const sy = this.state.settings.sync; return (sy.cfg || {})[sy.provider] || {}; }
+  setSync(patch) { this.setState(s => ({ settings: { ...s.settings, sync: { ...s.settings.sync, ...patch } } })); }
+  setCfg(key, v) {
+    this.setState(s => { const sy = s.settings.sync, pid = sy.provider, st = s.syncStatus; return { settings: { ...s.settings, sync: { ...sy, connected: false, cfg: { ...(sy.cfg || {}), [pid]: { ...((sy.cfg || {})[pid] || {}), [key]: v } } } }, syncStatus: st.state === 'error' ? { ...st, missing: (st.missing || []).filter(x => x !== key) } : { state: 'idle' } }; });
+  }
+  ago(t) { const d = (Date.now() - t) / 1000; return d < 45 ? 'just now' : d < 3600 ? Math.round(d / 60) + 'm ago' : d < 86400 ? Math.round(d / 3600) + 'h ago' : Math.round(d / 86400) + 'd ago'; }
+  testSync() {
+    const sy = this.state.settings.sync, cfg = this.syncCfg(), spec = this.syncSpec(sy.provider, cfg);
+    const missing = spec.filter(d => d.req && !String(cfg[d.key] != null ? cfg[d.key] : (d.def || '')).trim());
+    clearTimeout(this._syncT);
+    if (missing.length) { this.setState({ syncStatus: { state: 'error', msg: 'Fill in ' + missing.map(d => d.label.toLowerCase()).join(', ') + '.', missing: missing.map(d => d.key) } }); return; }
+    this.setState({ syncStatus: { state: 'testing', msg: 'Connecting…' } });
+    this._syncT = setTimeout(() => {
+      const secretKey = ['secretKey', 'azKey', 'hmacSecret', 'gcsJson'].find(k => spec.some(d => d.key === k));
+      if (String(cfg[secretKey] || '').trim().length < 8) { this.setState({ syncStatus: { state: 'error', msg: 'Access denied (403). Check the ' + spec.find(d => d.key === secretKey).label.toLowerCase() + '.', missing: [secretKey] } }); return; }
+      const where = cfg.bucket || cfg.container, n = Object.keys(this.files()).length, last = this.state.settings.sync.lastSync;
+      this.setSync({ connected: true });
+      this.setState({ syncStatus: { state: 'ok', msg: `Connected to ${where}. ` + (last ? 'Everything is up to date.' : `${n} notes will upload on the first sync.`) } });
+    }, 1100);
+  }
+  syncNow() {
+    clearTimeout(this._syncT);
+    this.setState({ syncStatus: { state: 'testing', msg: 'Uploading…' }, syncBusy: true });
+    this._syncT = setTimeout(() => { const n = Object.keys(this.files()).length; this.setSync({ lastSync: Date.now() }); this.setState({ syncBusy: false, syncStatus: { state: 'ok', msg: `Synced ${n} notes.` } }); }, 1300);
+  }
+
+  commands() {
+    const s = this.state, has = !!s.active, dark = this.isDark();
+    return [
+      { label: 'New note', keys: ['Mod', 'N'], run: () => this.newNote() },
+      { label: "Open today's journal entry", run: () => this.openToday() },
+      { label: 'Open quick switcher', keys: ['Mod', 'O'], run: () => this.openPalette('files') },
+      has && { label: s.mode === 'source' ? 'Show preview' : 'Show source', keys: ['Mod', 'E'], run: () => this.toggleMode() },
+      { label: 'Search all notes', keys: ['Mod', 'Shift', 'F'], run: () => this.openSearch() },
+      has && { label: s.focus ? 'Leave focus mode' : 'Enter focus mode', keys: ['Mod', '.'], run: () => this.toggleFocus() },
+      { label: s.leftOpen ? 'Hide sidebar' : 'Show sidebar', keys: ['Mod', '\\'], run: () => this.setState(x => ({ leftOpen: !x.leftOpen })) },
+      { label: s.rightOpen ? 'Hide outline' : 'Show outline', run: () => this.setState(x => ({ rightOpen: !x.rightOpen })) },
+      { label: dark ? 'Use light theme' : 'Use dark theme', run: () => this.setSetting('theme', dark ? 'light' : 'dark') },
+      has && { label: 'Rename note', run: () => this.startRename() },
+      has && { label: 'Delete note', run: () => this.deleteNote() },
+      has && { label: 'Close tab', run: () => this.closeTab(s.active) },
+      { label: 'Open settings', keys: ['Mod', ','], run: () => this.setState({ settingsOpen: true }) },
+      { label: 'Switch folder…', run: () => this.goWelcome() },
+      { label: 'Restore sample notes', run: () => this.resetSample() }
+    ].filter(Boolean);
+  }
+  palData() {
+    const p = this.state.palette; if (!p) return null;
+    let mode = p.mode, q = p.q;
+    if (mode === 'files' && q.startsWith('>')) { mode = 'commands'; q = q.slice(1); }
+    q = q.trim(); let items = [];
+    if (mode === 'files') {
+      const files = this.files(), paths = Object.keys(files); let list;
+      if (!q) { const rec = this.state.recent.filter(x => files[x] != null); list = [...rec, ...paths.filter(x => !rec.includes(x)).sort()].map(x => ({ x, idx: [] })); }
+      else list = paths.map(x => { const f = this.fuzzy(q, this.base(x)); if (f) return { x, idx: f.idx, score: f.score + 500 }; const f2 = this.fuzzy(q, x.replace(/\.md$/i, '')); return f2 ? { x, idx: [], score: f2.score } : null; }).filter(Boolean).sort((a, b) => b.score - a.score);
+      items = list.slice(0, 50).map(o => ({ segs: this.segs(this.base(o.x), o.idx), sub: this.dir(o.x), run: () => this.openFile(o.x) }));
+      if (q && !paths.some(x => this.base(x).toLowerCase() === q.toLowerCase())) items.push({ segs: [{ t: 'Create note “' + q + '”', c: 'inherit', w: 'inherit' }], sub: 'new', run: () => { this.setState({ palette: null }); this.newNote(q); } });
+    } else {
+      const cmds = this.commands();
+      const list = q ? cmds.map(c => { const f = this.fuzzy(q, c.label); return f && { c, f }; }).filter(Boolean).sort((a, b) => b.f.score - a.f.score) : cmds.map(c => ({ c, f: { idx: [] } }));
+      items = list.map(({ c, f }) => ({ segs: this.segs(c.label, f.idx), sub: c.keys ? this.k(...c.keys) : '', run: () => { this.setState({ palette: null }); c.run(); } }));
+    }
+    return { mode, items, idx: Math.max(0, Math.min(p.idx, items.length - 1)) };
+  }
+  onPalKey = (e) => {
+    const d = this.palData(); if (!d) return; const n = Math.max(1, d.items.length);
+    if (e.key === 'ArrowDown') { e.preventDefault(); this.setState(s => ({ palette: { ...s.palette, idx: (d.idx + 1) % n } })); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); this.setState(s => ({ palette: { ...s.palette, idx: (d.idx - 1 + n) % n } })); }
+    else if (e.key === 'Enter') { e.preventDefault(); const it = d.items[d.idx]; if (it) it.run(); }
+    else if (e.key === 'Backspace' && !this.state.palette.q && this.state.palette.mode === 'commands') { e.preventDefault(); this.setState(s => ({ palette: { ...s.palette, mode: 'files', idx: 0 } })); }
+  };
+  scrollPalItem() {
+    const el = this.palListRef.current, d = this.palData(); if (!el || !d) return; const it = el.children[d.idx]; if (!it) return;
+    if (it.offsetTop < el.scrollTop) el.scrollTop = it.offsetTop - 6;
+    else if (it.offsetTop + it.offsetHeight > el.scrollTop + el.clientHeight) el.scrollTop = it.offsetTop + it.offsetHeight - el.clientHeight + 6;
+  }
+
+  inlineRe() { return /(`[^`\n]+`)|(\[\[[^\]\n]+\]\])|(\*\*[^*\n]+\*\*|__[^_\n]+__)|(\*[^*\s][^*\n]*\*|(?<![\w])_[^_\s][^_\n]*_(?![\w]))|(~~[^~\n]+~~)|(\[[^\]\n]+\]\([^)\s]+\))|((?<![\w#&/])#[A-Za-z][\w/-]*)/g; }
+  hlInline(s, out, base) {
+    const h = React.createElement, C = this.C;
+    const sp = (t, st) => { if (t) out.push(h('span', { key: out.length, style: (base || st) ? Object.assign({}, base, st) : undefined }, t)); };
+    const mk = { color: C.mark, fontWeight: 400, fontStyle: 'normal', textDecoration: 'none' };
+    const re = this.inlineRe(); let last = 0, m;
+    while ((m = re.exec(s))) {
+      sp(s.slice(last, m.index)); const t = m[0];
+      if (m[1]) { sp('`', mk); sp(t.slice(1, -1), { background: C.code, color: C.ink2 }); sp('`', mk); }
+      else if (m[2]) { const inner = t.slice(2, -2), ok = this.resolve(inner.split('|')[0]); sp('[[', mk); sp(inner, { color: ok ? C.acc : C.mute, textDecoration: 'underline', textDecorationStyle: ok ? 'solid' : 'dashed', textDecorationColor: ok ? 'rgba(138,95,201,.4)' : C.mark, textUnderlineOffset: '3px' }); sp(']]', mk); }
+      else if (m[3]) { const q = t.slice(0, 2); sp(q, mk); sp(t.slice(2, -2), { fontWeight: 600, color: C.ink }); sp(q, mk); }
+      else if (m[4]) { sp(t[0], mk); sp(t.slice(1, -1), { fontStyle: 'italic' }); sp(t[0], mk); }
+      else if (m[5]) { sp('~~', mk); sp(t.slice(2, -2), { textDecoration: 'line-through', color: C.mute }); sp('~~', mk); }
+      else if (m[6]) { const j = t.indexOf(']('); sp('[', mk); sp(t.slice(1, j), { color: C.acc }); sp(t.slice(j), mk); }
+      else if (m[7]) sp(t, { color: C.acc, background: C.soft, borderRadius: '3px' });
+      last = m.index + t.length;
+    }
+    sp(s.slice(last));
+  }
+  hlLine(ln) {
+    const h = React.createElement, C = this.C, out = [];
+    const sp = (t, st) => { if (t) out.push(h('span', { key: out.length, style: st || undefined }, t)); };
+    let m;
+    if ((m = ln.match(/^(#{1,6})(\s+)(.*)$/))) { sp(m[1] + m[2], { color: C.acc, opacity: 0.6 }); this.hlInline(m[3], out, { fontWeight: 600, color: C.ink }); return out; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln)) { sp(ln, { color: C.mark }); return out; }
+    if ((m = ln.match(/^(\s*>+\s?)(.*)$/))) { sp(m[1], { color: C.acc }); this.hlInline(m[2], out, { fontStyle: 'italic', color: C.ink2 }); return out; }
+    if ((m = ln.match(/^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s)?(.*)$/))) {
+      sp(m[1]); sp(m[2] + m[3], { color: C.acc }); let base = null;
+      if (m[4]) { const done = /x/i.test(m[4]); sp(m[4], { color: done ? C.mute : C.acc }); if (done) base = { color: C.mute, textDecoration: 'line-through', textDecorationColor: C.mark }; }
+      this.hlInline(m[5], out, base); return out;
+    }
+    this.hlInline(ln, out, null); return out;
+  }
+  hl(text, dim) {
+    const h = React.createElement, C = this.C, lines = text.split('\n'), out = []; let fence = false;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i], isF = /^\s*(```|~~~)/.test(ln), st = { transition: 'opacity .2s' }; let kids;
+      if (isF || fence) { st.background = C.code; st.color = C.ink2; kids = isF ? [h('span', { key: 0, style: { color: C.mark } }, ln)] : ln; if (isF) fence = !fence; }
+      else kids = this.hlLine(ln);
+      if (dim && (i < dim[0] || i > dim[1])) st.opacity = 0.28;
+      out.push(h('div', { key: i, style: st }, (kids && kids.length) ? kids : ' '));
+    }
+    return out;
+  }
+
+  pStyles() {
+    const C = this.C, set = this.state.settings, serif = set.previewFont === 'serif', mono = this.fontStack();
+    return {
+      root: { fontFamily: serif ? "'Newsreader', Georgia, serif" : "'Instrument Sans', system-ui, sans-serif", fontSize: (set.size + (serif ? 3 : 1)) + 'px', lineHeight: serif ? 1.62 : 1.65, color: C.ink, textWrap: 'pretty', overflowWrap: 'break-word' },
+      h1: { fontSize: '1.72em', lineHeight: 1.15, fontWeight: serif ? 500 : 600, letterSpacing: '-0.012em', margin: '0 0 .7em' },
+      h2: { fontSize: '1.3em', lineHeight: 1.25, fontWeight: 600, margin: '1.7em 0 .55em' },
+      h3: { fontSize: '1.08em', lineHeight: 1.3, fontWeight: 600, margin: '1.5em 0 .45em' },
+      p: { margin: '0 0 .95em' },
+      quote: { margin: '1.3em 0', padding: '.1em 0 .1em 1.1em', borderLeft: '2px solid ' + C.mark, color: C.ink2, fontStyle: 'italic' },
+      pre: { fontFamily: mono, fontSize: '.74em', lineHeight: 1.65, background: C.code, color: C.ink2, padding: '14px 18px', borderRadius: '8px', overflowX: 'auto', margin: '1.2em 0 1.3em', whiteSpace: 'pre' },
+      code: { fontFamily: mono, fontSize: '.8em', background: C.code, padding: '.12em .38em', borderRadius: '4px' },
+      hr: { border: 0, borderTop: '1px solid ' + C.line, margin: '2.2em 0' },
+      list: { margin: '0 0 1em', padding: 0, listStyle: 'none' },
+      li: { display: 'flex', gap: '.65em', margin: '.25em 0', alignItems: 'baseline' },
+      bullet: { flex: 'none', width: '1em', textAlign: 'center', color: C.acc },
+      num: { flex: 'none', minWidth: '1.3em', color: C.mute, fontFamily: mono, fontSize: '.78em' },
+      box: { flex: 'none', width: '.85em', height: '.85em', boxSizing: 'border-box', border: '1.5px solid ' + C.mark, borderRadius: '3px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', top: '.1em', cursor: 'pointer' },
+      boxOn: { background: C.acc, borderColor: C.acc },
+      wl: { color: C.acc, textDecoration: 'underline', textDecorationColor: 'rgba(138,95,201,.38)', textUnderlineOffset: '3px', textDecorationThickness: '1px', cursor: 'pointer' },
+      wlMiss: { color: C.mute, textDecoration: 'underline dashed', textDecorationColor: C.mark, textUnderlineOffset: '3px', cursor: 'pointer' },
+      link: { color: C.acc, textUnderlineOffset: '3px' },
+      tag: { fontFamily: mono, fontSize: '.72em', fontStyle: 'normal', color: C.acc, background: C.soft, padding: '.18em .45em', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }
+    };
+  }
+  inl(s) {
+    const h = React.createElement, S = this._pS, C = this.C, out = [], re = this.inlineRe(); let last = 0, m, k = 0;
+    while ((m = re.exec(s))) {
+      if (m.index > last) out.push(s.slice(last, m.index));
+      const t = m[0];
+      if (m[1]) out.push(h('code', { key: k++, style: S.code }, t.slice(1, -1)));
+      else if (m[2]) { const parts = t.slice(2, -2).split('|'), tg = parts[0], al = parts[1], ok = this.resolve(tg); out.push(h('a', { key: k++, href: '#', title: ok ? tg : tg + ' (not created yet)', onClick: e => { e.preventDefault(); this.openLink(tg); }, style: ok ? S.wl : S.wlMiss }, (al || tg).trim())); }
+      else if (m[3]) out.push(h('strong', { key: k++, style: { fontWeight: 600 } }, this.inl(t.slice(2, -2))));
+      else if (m[4]) out.push(h('em', { key: k++ }, this.inl(t.slice(1, -1))));
+      else if (m[5]) out.push(h('del', { key: k++, style: { color: C.mute } }, t.slice(2, -2)));
+      else if (m[6]) { const j = t.indexOf(']('); out.push(h('a', { key: k++, href: t.slice(j + 2, -1), target: '_blank', rel: 'noreferrer', style: S.link }, t.slice(1, j))); }
+      else if (m[7]) out.push(h('span', { key: k++, onClick: () => this.searchTag(t.slice(1)), style: S.tag }, t));
+      last = m.index + t.length;
+    }
+    if (last < s.length) out.push(s.slice(last));
+    return out;
+  }
+  renderPreview(text) {
+    const h = React.createElement, S = this.pStyles(), C = this.C; this._pS = S;
+    const lines = text.split('\n'), out = []; let i = 0, hi = 0;
+    const isList = l => /^\s*([-*+]|\d+[.)])\s+/.test(l), isHr = l => /^\s*([-*_])(\s*\1){2,}\s*$/.test(l);
+    const isStart = l => /^\s*(```|#{1,6}\s|>)/.test(l) || isList(l) || isHr(l);
+    while (i < lines.length) {
+      const ln = lines[i], start = i;
+      if (!ln.trim()) { i++; continue; }
+      if (/^\s*```/.test(ln)) { const buf = []; i++; while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]); i++; out.push(h('pre', { key: start, 'data-line': start, style: S.pre }, buf.join('\n'))); continue; }
+      const m = ln.match(/^(#{1,6})\s+(.*)$/);
+      if (m) { const lv = Math.min(m[1].length, 3); out.push(h('h' + lv, { key: start, 'data-line': start, 'data-h': hi++, style: S['h' + lv] }, this.inl(m[2]))); i++; continue; }
+      if (isHr(ln)) { out.push(h('hr', { key: start, style: S.hr })); i++; continue; }
+      if (/^\s*>/.test(ln)) { const buf = []; while (i < lines.length && /^\s*>/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>+\s?/, '')); out.push(h('blockquote', { key: start, 'data-line': start, style: S.quote }, this.inl(buf.join(' ')))); continue; }
+      if (isList(ln)) {
+        const items = [];
+        while (i < lines.length && isList(lines[i])) { const mm = lines[i].match(/^(\s*)([-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/); items.push({ ind: mm[1].replace(/\t/g, '  ').length, mk: mm[2], task: mm[3] !== undefined, done: !!mm[3] && mm[3] !== ' ', text: mm[4], line: i }); i++; }
+        out.push(h(/\d/.test(items[0].mk) ? 'ol' : 'ul', { key: start, 'data-line': start, style: S.list }, items.map(it => {
+          let marker;
+          if (it.task) marker = h('span', { onClick: () => this.toggleTask(it.line), role: 'checkbox', 'aria-checked': it.done, style: it.done ? { ...S.box, ...S.boxOn } : S.box }, it.done ? h('svg', { width: 9, height: 9, viewBox: '0 0 10 10' }, h('path', { d: 'M1.5 5.2l2.4 2.4L8.5 2.6', fill: 'none', stroke: '#fff', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' })) : null);
+          else if (/\d/.test(it.mk)) marker = h('span', { style: S.num }, it.mk);
+          else marker = h('span', { style: S.bullet }, '•');
+          return h('li', { key: it.line, style: { ...S.li, marginLeft: (Math.floor(it.ind / 2) * 1.5) + 'em' } }, marker, h('span', { style: it.done ? { flex: 1, minWidth: 0, color: C.mute, textDecoration: 'line-through', textDecorationColor: C.mark } : { flex: 1, minWidth: 0 } }, this.inl(it.text)));
+        })));
+        continue;
+      }
+      const buf = [];
+      while (i < lines.length && lines[i].trim() && (buf.length === 0 || !isStart(lines[i]))) buf.push(lines[i++]);
+      out.push(h('p', { key: start, 'data-line': start, style: S.p }, this.inl(buf.join(' '))));
+    }
+    return h('div', { style: S.root }, out);
+  }
+
+  treeRows(vault, active) {
+    const C = this.C, root = { folders: {}, files: [], path: '' };
+    const add = path => { let n = root; path.split('/').forEach(part => { if (!n.folders[part]) n.folders[part] = { folders: {}, files: [], path: n.path ? n.path + '/' + part : part }; n = n.folders[part]; }); return n; };
+    (vault.folders || []).forEach(add);
+    Object.keys(vault.files).forEach(p => { const d = this.dir(p); (d ? add(d) : root).files.push(p); });
+    const rows = [], ex = this.state.expanded;
+    const walk = (n, depth) => {
+      Object.keys(n.folders).sort((a, b) => a.localeCompare(b)).forEach(name => { const f = n.folders[name], open = !!ex[f.path]; rows.push({ name, title: f.path, pad: (8 + depth * 20) + 'px', rot: open ? 'rotate(90deg)' : 'none', chevOp: 1, isFolder: true, open, closed: !open, color: C.ink2, weight: 500, shadow: 'none', onClick: () => this.toggleFolder(f.path) }); if (open) walk(f, depth + 1); });
+      n.files.sort((a, b) => this.base(a).localeCompare(this.base(b))).forEach(p => { const on = p === active; rows.push({ name: this.base(p), title: p, pad: (8 + depth * 20) + 'px', rot: 'none', chevOp: 0, isFolder: false, open: false, closed: false, color: on ? C.ink : C.ink2, weight: on ? 500 : 400, shadow: on ? 'inset 0 0 0 100px ' + C.act : 'none', onClick: () => this.openFile(p) }); });
+    };
+    walk(root, 0);
+    return rows;
+  }
+
+  renderVals() {
+    const s = this.state, set = s.settings, C = this.C, h = React.createElement;
+    const plat = this.props.platform ?? 'neutral', mac = this.isMac();
+    const framed = (this.props.framed ?? true) && s.vw >= 760;
+    const vault = s.vaults[s.vaultId] || Object.values(s.vaults)[0], files = vault.files;
+    this.buildNames(files);
+    const isVault = s.screen === 'vault';
+    const active = s.active && files[s.active] != null ? s.active : null;
+    const doc = active ? files[active] : '';
+    const focus = isVault && s.focus && !!active;
+    const leftVisible = isVault && s.leftOpen && !focus && s.vw >= 680;
+    const rightVisible = isVault && s.rightOpen && !focus && !!active && s.vw >= 1100;
+    const isSource = !!active && s.mode === 'source', isPreview = !!active && s.mode === 'preview';
+    const fam = this.fontStack(), size = set.size, stop = e => e.stopPropagation();
+    const segBtn = on => ({ bg: on ? C.bg : 'transparent', color: on ? C.ink : C.mute, shadow: on ? '0 1px 2px rgba(40,28,10,.14), 0 0 0 1px rgba(40,28,10,.05)' : 'none' });
+
+    const pos = Math.min(s.sel.start, doc.length); let line = 0, ls = 0;
+    for (let i = 0; i < pos; i++) if (doc.charCodeAt(i) === 10) { line++; ls = i + 1; }
+    const col = pos - ls, selText = s.sel.end > s.sel.start ? doc.slice(s.sel.start, Math.min(s.sel.end, doc.length)) : '';
+    let linkHint = '';
+    if (isSource) { const le = doc.indexOf('\n', pos), lt = doc.slice(ls, le < 0 ? doc.length : le), re = /\[\[([^\]\n]+)\]\]/g; let m; while ((m = re.exec(lt))) { if (col >= m.index && col <= m.index + m[0].length) { const t = m[1].split('|')[0].trim(); linkHint = this.modClick() + (this.resolve(t) ? ' to open “' : ' to create “') + t + '”'; break; } } }
+    const wc = active ? this.words(doc) : 0, swc = selText ? this.words(selText) : 0;
+
+    const tabs = s.tabs.filter(p => files[p] != null).map(p => { const on = p === active; return { path: p, name: this.base(p), open: () => { if (p !== this.state.active) this.openFile(p); }, aux: e => { if (e.button === 1) { e.preventDefault(); this.closeTab(p); } }, close: e => { e.stopPropagation(); this.closeTab(p); }, bg: on ? C.bg : 'transparent', color: on ? C.ink : C.mute, border: on ? C.line : 'transparent', xOp: on ? 1 : 0.55 }; });
+
+    const heads = active ? this.headings(doc) : [];
+    let cur = -1; if (isSource) heads.forEach((hd, i) => { if (hd.line <= line) cur = i; }); else cur = Math.min(s.prevHead, heads.length - 1);
+    const minLv = heads.reduce((a, b) => Math.min(a, b.level), 6);
+    const outline = heads.map((hd, i) => ({ text: hd.text, pad: (8 + (hd.level - minLv) * 14) + 'px', color: i === cur ? C.ink : C.ink2, weight: i === cur ? 500 : 400, dot: i === cur ? C.acc : 'transparent', onClick: () => this.jump(hd.line) }));
+    const backlinks = rightVisible ? this.backlinks(files, active).map(b => ({ name: this.base(b.p), sub: this.dir(b.p), onClick: () => this.openFile(b.p) })) : [];
+
+    let results = [], searchSummary = '';
+    if (leftVisible && s.leftPanel === 'search') {
+      const q = s.query.trim();
+      if (q) {
+        const r = this.search(files, q); let total = 0;
+        results = r.map(o => { total += o.hits.length; const first = o.hits[0]; return { name: this.base(o.p), sub: this.dir(o.p), count: o.hits.length ? String(o.hits.length) : '', open: () => this.openFile(o.p, first ? { start: first.pos, end: first.pos + q.length, line: first.li, forceSource: true } : undefined), hits: o.hits.slice(0, 4).map(ht => { const a0 = Math.max(0, ht.i - 28), b0 = ht.i + q.length; return { a: (a0 > 0 ? '…' : '') + ht.ln.slice(a0, ht.i).replace(/^\s+/, ''), b: ht.ln.slice(ht.i, b0), c: ht.ln.slice(b0, b0 + 90), open: () => this.openFile(o.p, { start: ht.pos, end: ht.pos + q.length, line: ht.li, forceSource: true }) }; }), hasMore: o.hits.length > 4, more: '+ ' + (o.hits.length - 4) + ' more' }; });
+        searchSummary = r.length ? `${total} ${total === 1 ? 'match' : 'matches'} in ${r.length} ${r.length === 1 ? 'note' : 'notes'}` : 'No matches';
+      } else searchSummary = 'Searches every note in this folder';
+    }
+    const tagRows = (leftVisible && s.leftPanel === 'tags') ? this.tags(files).map(t => ({ label: '#' + t.tag, count: String(t.n), onClick: () => this.searchTag(t.tag) })) : [];
+    const treeRows = (leftVisible && s.leftPanel === 'files') ? this.treeRows(vault, active) : [];
+
+    const pd = this.palData();
+    const palItems = pd ? pd.items.map((it, i) => ({ ...it, bg: i === pd.idx ? C.act : 'transparent', hover: () => { const p = this.state.palette; if (p && p.idx !== i) this.setState(x => ({ palette: { ...x.palette, idx: i } })); } })) : [];
+
+    const opt = (key, val, label) => ({ label, onClick: () => this.setSetting(key, val), ...segBtn(set[key] === val) });
+    const tog = (key, label, desc) => { const on = !!set[key]; return { label, desc, onClick: () => this.setSetting(key, !on), bg: on ? '#7d52bd' : C.mark, justify: on ? 'flex-end' : 'flex-start' }; };
+    const secs = [['appearance', 'Appearance'], ['editor', 'Editor'], ['files', 'Files & links'], ['sync', 'Sync & backup'], ['mcp', 'MCP'], ['keys', 'Shortcuts']];
+
+    const fileCount = Object.keys(files).length;
+    const dim = focus && isSource && set.dimFocus ? this.paraRange(doc, pos) : null;
+    const edStyle = { fontFamily: fam, fontSize: size + 'px', lineHeight: 1.75, letterSpacing: 0, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', wordBreak: 'normal', tabSize: 4, fontVariantLigatures: 'none', color: C.ink, pointerEvents: 'none', margin: 0, padding: 0 };
+    const dots = plat === 'mac' ? ['#ff5f57', '#febc2e', '#28c840'] : [C.mark, C.mark, C.mark];
+
+    const sy = set.sync || { provider: 'none', cfg: {}, when: 'save' }, pid = sy.provider || 'none', scfg = (sy.cfg || {})[pid] || {};
+    const pdef = this.providerDefs().find(p => p.id === pid) || {}, sst = s.syncStatus || { state: 'idle' }, miss = sst.missing || [];
+    const syncFields = this.syncSpec(pid, scfg).map(d => {
+      const v = d.type === 'read' ? d.value : (scfg[d.key] != null ? scfg[d.key] : (d.def || '')), rev = !!s.reveal[d.key];
+      return { label: d.label, hint: d.hint || '', ph: d.ph || '', value: v, span: d.wide ? '1 / -1' : 'auto', isText: !d.type || d.type === 'secret', isSecret: d.type === 'secret', inputType: d.type === 'secret' && !rev ? 'password' : 'text', revealLabel: rev ? 'hide' : 'show', onReveal: () => this.setState(x => ({ reveal: { ...x.reveal, [d.key]: !x.reveal[d.key] } })), isChoice: d.type === 'choice', isArea: d.type === 'area', isRead: d.type === 'read', opts: (d.opts || []).map(o => ({ label: o.label, onClick: () => this.setCfg(d.key, o.v), border: v === o.v ? C.acc : C.line, color: v === o.v ? C.acc : C.ink2 })), border: miss.includes(d.key) ? 'var(--q-err,#b0432f)' : C.line, onChange: e => this.setCfg(d.key, e.target.value) };
+    });
+    const syncOn = pid !== 'none' && !!sy.connected;
+    const syncMsg = sst.state === 'idle' ? (sy.connected ? 'Connected. ' + (sy.lastSync ? 'Last synced ' + this.ago(sy.lastSync) + '.' : 'Not synced yet.') : 'Not connected yet.') : sst.msg;
+    const mcp = set.mcp || {}, mtools = mcp.tools || {}, ro = mcp.access !== 'write', http = mcp.transport === 'http';
+    const toolDefs = [['list_notes', 'List notes and folders', false], ['read_note', 'Read a note as Markdown', false], ['search_notes', 'Full-text and tag search', false], ['get_backlinks', 'Find notes that link to a note', false], ['create_note', 'Create a new note', true], ['update_note', 'Replace or append to a note', true], ['rename_note', 'Rename a note and update links', true], ['delete_note', 'Move a note to the trash', true]];
+    const mcpToolRows = toolDefs.map(([id, desc, w]) => { const avail = !(w && ro), on = avail && !!mtools[id]; return { name: id, desc, isWrite: w, on, op: avail ? 1 : 0.45, boxBg: on ? '#7d52bd' : 'transparent', boxBorder: on ? '#7d52bd' : C.mark, onClick: () => { if (avail) this.setMcp({ tools: { ...mtools, [id]: !mtools[id] } }); } }; });
+    const nTools = mcpToolRows.filter(t => t.on).length, hidden = mcp.hidden || [];
+    const mcpUrl = `http://127.0.0.1:${mcp.port || '3917'}/mcp`;
+    const mcpConfig = JSON.stringify({ mcpServers: { quire: http ? { url: mcpUrl, headers: { Authorization: 'Bearer ' + (mcp.token || '') } } : { command: 'quire', args: ['mcp', '--folder', vault.path] } } }, null, 2);
+    return {
+      secMcp: s.setSec === 'mcp', mcpOn: !!mcp.enabled, mcpToggle: () => this.setMcp({ enabled: !mcp.enabled }), mcpBg: mcp.enabled ? '#7d52bd' : C.mark, mcpJustify: mcp.enabled ? 'flex-end' : 'flex-start',
+      mcpTransportOpts: [['stdio', 'stdio'], ['http', 'HTTP']].map(([v, label]) => ({ label, onClick: () => this.setMcp({ transport: v }), ...segBtn((mcp.transport || 'stdio') === v) })),
+      mcpHttp: http, mcpPort: mcp.port || '', onMcpPort: e => this.setMcp({ port: e.target.value.replace(/\D/g, '').slice(0, 5) }), mcpUrl,
+      mcpToken: mcp.token || '', mcpTokenType: s.reveal.mcpToken ? 'text' : 'password', mcpTokenReveal: s.reveal.mcpToken ? 'hide' : 'show', onRevealToken: () => this.setState(x => ({ reveal: { ...x.reveal, mcpToken: !x.reveal.mcpToken } })), regenToken: () => this.setMcp({ token: this.newToken() }),
+      mcpAccessOpts: [['read', 'Read only'], ['write', 'Read & write']].map(([v, label]) => ({ label, onClick: () => this.setMcp({ access: v }), ...segBtn((ro ? 'read' : 'write') === v) })),
+      mcpToolRows, mcpWrite: !ro, mcpConfirmToggle: () => this.setMcp({ confirm: !mcp.confirm }), mcpConfirmBg: mcp.confirm ? '#7d52bd' : C.mark, mcpConfirmJustify: mcp.confirm ? 'flex-end' : 'flex-start',
+      mcpFolderOpts: [{ v: '', label: 'root notes' }, ...this.folderList(vault).map(x => ({ v: x, label: x + '/' }))].map(o => { const on = !hidden.includes(o.v); return { label: o.label, border: on ? C.acc : C.line, color: on ? C.acc : C.mute, deco: on ? 'none' : 'line-through', onClick: () => this.setMcp({ hidden: on ? [...hidden, o.v] : hidden.filter(x => x !== o.v) }) }; }),
+      mcpConfig, mcpCopyLabel: s.mcpCopied ? 'Copied' : 'Copy',
+      copyMcp: () => { try { navigator.clipboard.writeText(mcpConfig).catch(() => {}); } catch (e) {} this.setState({ mcpCopied: true }); clearTimeout(this._copyT); this._copyT = setTimeout(() => this.setState({ mcpCopied: false }), 1600); },
+      mcpStatus: `ready on ${http ? '127.0.0.1:' + (mcp.port || '3917') : 'stdio'} · ${nTools} ${nTools === 1 ? 'tool' : 'tools'} · waiting for a client`,
+      secSync: s.setSec === 'sync', hasProvider: pid !== 'none', providerTitle: pdef.full || '',
+      providerOpts: this.providerDefs().map(p => ({ name: p.name, kind: p.kind, onClick: () => { if (p.id !== pid) { this.setSync({ provider: p.id, connected: false }); this.setState({ syncStatus: { state: 'idle' } }); } }, border: pid === p.id ? C.acc : C.line, ring: pid === p.id ? '0 0 0 1px ' + C.acc : 'none', kindColor: pid === p.id ? C.acc : C.mute })),
+      syncFields, whenOpts: [['save', 'On save'], ['interval', 'Every 5 min'], ['manual', 'Manually']].map(([v, label]) => ({ label, onClick: () => this.setSync({ when: v }), ...segBtn(sy.when === v) })),
+      encryptOn: !!sy.encrypt, encOnClick: () => this.setSync({ encrypt: !sy.encrypt, connected: false }), encBg: sy.encrypt ? '#7d52bd' : C.mark, encJustify: sy.encrypt ? 'flex-end' : 'flex-start',
+      passVal: sy.pass || '', onPass: e => this.setSync({ pass: e.target.value }), passType: s.reveal.pass ? 'text' : 'password', passReveal: s.reveal.pass ? 'hide' : 'show', onRevealPass: () => this.setState(x => ({ reveal: { ...x.reveal, pass: !x.reveal.pass } })),
+      testSync: () => this.testSync(), syncNow: () => this.syncNow(), testLabel: sst.state === 'testing' ? 'Working…' : 'Test connection', canSyncNow: !!sy.connected && sst.state !== 'testing',
+      syncMsg, syncMsgColor: sst.state === 'error' ? 'var(--q-err,#b0432f)' : sst.state === 'ok' ? C.ink2 : C.mute,
+      syncOn, syncDot: s.syncBusy ? C.acc : C.mark, syncLabel: s.syncBusy ? 'syncing…' : (sy.lastSync ? 'synced ' + this.ago(sy.lastSync) : 'not synced yet'),
+      rootRef: this.rootRef, taRef: this.taRef, scRef: this.scRef, palRef: this.palRef, palListRef: this.palListRef, searchRef: this.searchRef, renameRef: this.renameRef, newVaultRef: this.newVaultRef, stop,
+      deskPad: framed ? 'clamp(12px, 3vw, 40px)' : '0', winMax: framed ? '1480px' : 'none', winRadius: framed ? '11px' : '0',
+      winShadow: framed ? '0 0 0 1px rgba(30,20,5,.10), 0 30px 70px -20px rgba(40,28,10,.40), 0 8px 20px -8px rgba(40,28,10,.18)' : 'none',
+      winBg: isVault && !focus ? C.side : C.bg,
+      showDots: plat !== 'windows', isWin: plat === 'windows', dot1: dots[0], dot2: dots[1], dot3: dots[2],
+      isWelcome: !isVault, isVault, focus, notFocus: isVault && !focus,
+      notCreating: !s.creating, creating: !!s.creating, newVaultName: s.creating ? s.creating.name : '',
+      newVaultPath: '~/Documents/' + ((s.creating && s.creating.name.trim()) || 'Untitled notebook'),
+      startCreate: () => this.setState({ creating: { name: '' } }), cancelCreate: () => this.setState({ creating: null }),
+      onNewVaultName: e => this.setState({ creating: { name: e.target.value } }),
+      onNewVaultKey: e => { if (e.key === 'Enter') this.createVault(); },
+      createVault: () => this.createVault(), openFirstVault: () => this.openVault(s.vaults.fieldnotes ? 'fieldnotes' : Object.keys(s.vaults)[0]),
+      recentVaults: Object.keys(s.vaults).map(id => { const v = s.vaults[id], n = Object.keys(v.files).length; return { name: v.name, path: v.path, count: n + (n === 1 ? ' note' : ' notes'), open: () => this.openVault(id) }; }),
+      leftZoneW: leftVisible ? '248px' : 'auto', toggleLeft: () => this.setState(x => ({ leftOpen: !x.leftOpen })), toggleRight: () => this.setState(x => ({ rightOpen: !x.rightOpen })),
+      tabs, newNoteClick: () => this.newNote(), hasDoc: !!active,
+      setSource: () => this.setMode('source'), setPreview: () => this.setMode('preview'),
+      srcBg: segBtn(isSource).bg, srcColor: segBtn(isSource).color, srcShadow: segBtn(isSource).shadow,
+      prvBg: segBtn(isPreview).bg, prvColor: segBtn(isPreview).color, prvShadow: segBtn(isPreview).shadow,
+      leftVisible, rightVisible, vaultName: vault.name, vaultPath: vault.path,
+      toggleVaultMenu: () => this.setState(x => ({ vaultMenu: !x.vaultMenu })), closeVaultMenu: () => this.setState({ vaultMenu: false }), vaultMenu: s.vaultMenu && leftVisible,
+      goWelcome: () => this.goWelcome(), openSettings: () => this.setState({ settingsOpen: true, vaultMenu: false }),
+      panelTabs: ['files', 'search', 'tags'].map(id => ({ label: id, onClick: () => { if (id === 'search') this._focusSearch = true; this.setState({ leftPanel: id }); }, bg: s.leftPanel === id ? C.act : 'transparent', color: s.leftPanel === id ? C.ink : C.mute })),
+      panelFiles: s.leftPanel === 'files', panelSearch: s.leftPanel === 'search', panelTags: s.leftPanel === 'tags',
+      treeRows, treeEmpty: fileCount === 0, tagRows, tagsEmpty: s.leftPanel === 'tags' && tagRows.length === 0,
+      query: s.query, onQuery: e => this.setState({ query: e.target.value }), hasQuery: !!s.query, clearQuery: () => { this._focusSearch = true; this.setState({ query: '' }); },
+      results, searchSummary, kNew: this.k('Mod', 'N'), kSettings: this.k('Mod', ','),
+      sheetTop: focus ? '0' : '1px solid ' + C.line, sheetLeft: leftVisible ? '1px solid ' + C.line : '0', sheetRadius: leftVisible ? '10px' : '0',
+      onScroll: this.onScroll, onColDown: this.onColDown,
+      colMax: set.width === 'readable' ? (focus ? '68ch' : '72ch') : 'none',
+      colPad: focus ? '16vh clamp(20px, 6vw, 64px) 48vh' : '34px clamp(20px, 5vw, 56px) 38vh',
+      edFamily: fam, edSize: size + 'px',
+      showCrumb: !!active && !focus, hasFolder: !!active && !!this.dir(active), folderName: active ? this.dir(active) : '', fileBase: active ? this.base(active) : '',
+      notRenaming: !s.renaming, renaming: s.renaming, renameVal: s.renameVal, renameW: (s.renameVal.length + 1) + 'ch',
+      startRename: this.startRename, commitRename: this.commitRename, onRenameVal: e => this.setState({ renameVal: e.target.value }),
+      onRenameKey: e => { if (e.key === 'Enter') { e.preventDefault(); this.commitRename(); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.setState({ renaming: false }); this.focusEditor(); } },
+      isSource, isPreview, docText: doc, onText: this.onText, onSel: this.onSel, onTaKey: this.onTaKey, onTaClick: this.onTaClick, onTaScroll: this.onTaScroll, spell: !!set.spellcheck,
+      hlEl: isSource ? h('div', { ref: this.hlRef, 'aria-hidden': true, style: edStyle }, this.hl(doc, dim)) : null,
+      previewEl: isPreview ? this.renderPreview(doc) : null,
+      showNoTab: isVault && !active && fileCount > 0, showEmptyVault: isVault && fileCount === 0,
+      hints: [['Open a note', ['Mod', 'O'], () => this.openPalette('files')], ['New note', ['Mod', 'N'], () => this.newNote()], ['All commands', ['Mod', 'P'], () => this.openPalette('commands')], ['Search', ['Mod', 'Shift', 'F'], () => this.openSearch()]].map(([label, keys, run]) => ({ label, kbd: this.k(...keys), run })),
+      emptyVaultText: `Notes you write here are saved as plain .md files in ${vault.path}.`,
+      outline, noOutline: heads.length === 0, backlinks, noBacklinks: backlinks.length === 0,
+      showStatus: !!active && !focus,
+      posLabel: isPreview ? 'preview' : (selText ? `${selText.length.toLocaleString()} selected` : `Ln ${line + 1}, Col ${col + 1}`),
+      hasLinkHint: !!linkHint, linkHint,
+      wordLabel: selText ? `${swc.toLocaleString()} of ${wc.toLocaleString()} words` : `${wc.toLocaleString()} ${wc === 1 ? 'word' : 'words'}`,
+      readLabel: `${Math.max(1, Math.round(wc / 230))} min read`,
+      focusHint: `${wc.toLocaleString()} words · esc to leave focus`, toggleFocus: () => this.toggleFocus(),
+      palOpen: !!pd, palTag: pd && pd.mode === 'commands' ? 'run' : 'open', palQ: s.palette ? s.palette.q : '',
+      palPlaceholder: pd && pd.mode === 'commands' ? 'Type a command…' : 'Find a note by name…',
+      palVerb: pd && pd.mode === 'commands' ? '↵ run' : '↵ open', palSwitchHint: pd && pd.mode === 'commands' ? this.k('Mod', 'O') + ' for notes' : 'type > for commands',
+      onPalQ: e => { const v = e.target.value; this.setState(x => ({ palette: { ...x.palette, q: v, idx: 0 } })); }, onPalKey: this.onPalKey,
+      closePalette: () => { this.setState({ palette: null }); if (this.state.active && this.state.mode === 'source') this.focusEditor(); },
+      palItems, palEmpty: !!pd && palItems.length === 0,
+      settingsOpen: s.settingsOpen && isVault, closeSettings: () => this.setState({ settingsOpen: false }),
+      setNav: secs.map(([id, label]) => ({ label, onClick: () => this.setState({ setSec: id }), bg: s.setSec === id ? C.act : 'transparent', color: s.setSec === id ? C.ink : C.ink2, weight: s.setSec === id ? 500 : 400 })),
+      setTitle: (secs.find(x => x[0] === s.setSec) || secs[0])[1],
+      secAppearance: s.setSec === 'appearance', secEditor: s.setSec === 'editor', secFiles: s.setSec === 'files', secKeys: s.setSec === 'keys',
+      themeOpts: [opt('theme', 'light', 'Light'), opt('theme', 'dark', 'Dark'), opt('theme', 'system', 'Match system')],
+      prevOpts: [opt('previewFont', 'serif', 'Serif'), opt('previewFont', 'sans', 'Sans')],
+      widthOpts: [opt('width', 'readable', 'Readable'), opt('width', 'full', 'Full width')],
+      fontOpts: [['plex', 'IBM Plex Mono'], ['courier', 'Courier Prime'], ['spline', 'Spline Sans Mono']].map(([id, label]) => ({ label, family: this.fontStack(id), onClick: () => this.setSetting('font', id), border: set.font === id ? C.acc : C.line, ring: set.font === id ? '0 0 0 1px ' + C.acc : 'none', labelColor: set.font === id ? C.acc : C.mute })),
+      sizeLabel: size + ' px', sizeDown: () => this.setSetting('size', Math.max(12, size - 1)), sizeUp: () => this.setSetting('size', Math.min(24, size + 1)),
+      edToggles: [tog('spellcheck', 'Spell check', 'Underline misspelled words while you type.'), tog('continueLists', 'Continue lists', 'Pressing Enter in a list starts the next item.'), tog('dimFocus', 'Dim other paragraphs in focus mode', 'Only the paragraph you are writing stays at full strength.'), tog('typewriter', 'Typewriter scrolling in focus mode', 'Keeps the line you are typing near the middle of the window.')],
+      fileToggles: [tog('updateLinks', 'Update links when renaming', 'Rewrites [[links]] in other notes so they still point to the renamed file.')],
+      folderOpts: [{ v: '', label: 'Folder root' }, ...this.folderList(vault).map(f => ({ v: f, label: f + '/' }))].map(o => ({ label: o.label, onClick: () => this.setSetting('newFolder', o.v), ...segBtn((set.newFolder || '') === o.v) })),
+      resetSample: () => this.resetSample(),
+      shortcutRows: [['Quick switcher', ['Mod', 'O']], ['Command palette', ['Mod', 'P']], ['New note', ['Mod', 'N']], ['Source / preview', ['Mod', 'E']], ['Search all notes', ['Mod', 'Shift', 'F']], ['Focus mode', ['Mod', '.']], ['Toggle sidebar', ['Mod', '\\']], ['Settings', ['Mod', ',']], ['Bold', ['Mod', 'B']], ['Italic', ['Mod', 'I']]].map(([label, keys]) => ({ label, kbd: this.k(...keys) })).concat([{ label: 'Follow a [[link]]', kbd: this.modClick() }])
+    };
+  }
+}
+</script>
+</body>
+</html>

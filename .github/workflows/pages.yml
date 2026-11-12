@@ -1,0 +1,57 @@
+# Deploys the site/ folder to GitHub Pages.
+# In the repository settings, set Pages > Source to "GitHub Actions".
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Run one deploy at a time. Do not cancel a deploy that is in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # index.html holds two placeholders. This step fills them from the repository
+      # that runs the workflow, so the links and the social image URL are correct.
+      - name: Set the repository URL and the site URL
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          sed -i \
+            -e "s#https://github.com/OWNER/quire#${REPO_URL}#g" \
+            -e "s#https://OWNER.github.io/quire#${SITE_URL}#g" \
+            site/index.html
+          grep -n "OWNER" site/index.html && echo "A placeholder is still in site/index.html." || true
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
