@@ -24,6 +24,9 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 
 - Edits the `.md` files of a folder. Saves each note half a second after you stop typing, and on quit.
 - Shows source with live Markdown highlighting, or a rendered preview (`Ctrl+E`).
+- Has a formatting toolbar above the note in source mode: bold, italic, strikethrough, heading, link, note link, lists, task, quote, code and image. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` do the same as the first buttons. Settings, Editor, **Formatting toolbar** hides it.
+- Shows images in the preview: `![alt](path)` relative to the note, `![[name.png]]` anywhere in the folder, and `https://` images.
+- Adds an image when you drop it on a note, paste it, or pick it with the image button (`Ctrl+Shift+I`). Images from outside the folder are copied into `attachments/`. On Wayland, file drops come from a small addition to Rune's winit in `vendor/winit`.
 - Links notes with `[[Note name]]`. `Ctrl`-click a link to follow it. A link to a missing note creates the note.
 - Finds tags (`#tag`), searches every note (`Ctrl+Shift+F`), and lists headings and backlinks.
 - Opens any note with the quick switcher (`Ctrl+O`) and runs any command from the palette (`Ctrl+P`).
@@ -36,7 +39,7 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
 - On macOS the shortcuts use `⌘` in place of `Ctrl`.
-- Has 12 themes in Settings, Appearance: 5 for light mode and 7 for dark mode. You pick one for each mode, and "Match system" switches between them.
+- Has 14 themes in Settings, Appearance: 6 for light mode and 8 for dark mode. You pick one for each mode, and "Match system" switches between them.
 - Lets you pick the accent colour from 9 swatches, or type a `#rrggbb` value. An accent that is too dark to read on a dark theme gets lighter for text.
 - On Omarchy, offers the current Omarchy theme in both lists and follows theme switches while Quire runs. Without a pick, "Match system" uses the Omarchy theme.
 
@@ -59,6 +62,8 @@ Access is read-only by default. Each tool has its own switch, and hidden folders
 ## Sync
 
 Settings, Sync & backup connects a notes folder to a bucket. **Test connection** reads the remote folder and reports what it holds. After it passes, Quire syncs when the folder opens, after you save, every 5 minutes, or only when you select **Sync now**, as you choose. The status bar shows the last sync. Select it to open the sync settings.
+
+Each notes folder has its own **Remote folder**. Without a value, it is `quire/<folder name>/`. A request that the service does not answer in time is tried again up to 4 times, and transfers run 8 at a time.
 
 Quire keeps a record of the last sync for each folder and bucket in `~/.config/quire/sync/`. The record lets Quire tell an edit from a delete. See [`../SYNC.md`](../SYNC.md) for the format.
 

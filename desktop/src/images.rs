@@ -1,0 +1,313 @@
+//! Images in notes: where an image's file is, the web images the preview downloads, and the
+//! images you insert, paste or drop into a note. Inserted images go to `attachments/` in the
+//! notes folder, and the note links them with a path relative to its own folder.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use rune::{FileDialogOptions, Tx};
+
+use crate::app::App;
+use crate::md::{self, Img};
+
+/// The folder inside the notes folder that takes inserted images.
+pub const ATTACHMENTS: &str = "attachments";
+/// Larger files neither insert nor sync.
+pub const MAX_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Where an image's pixels come from.
+pub enum Source {
+    File(PathBuf),
+    Url(String),
+    /// No file at the path the note gives.
+    Missing(String),
+}
+
+/// A web image: on its way, here, or failed.
+#[derive(Clone)]
+pub enum Remote {
+    Loading,
+    Ready(rune::Image),
+    Failed(String),
+}
+
+/// The image cache and the web images, made when the app gets its waker.
+#[derive(Default)]
+pub struct Images {
+    pub cache: Option<Arc<rune::ImageCache>>,
+    remote: Arc<Mutex<HashMap<String, Remote>>>,
+    waker: Option<rune::Waker>,
+    /// The image files in the open notes folder, for `![[name]]` embeds. Made on first use.
+    index: std::cell::RefCell<Option<Vec<String>>>,
+    /// Handles of the files the preview shows, by path and file time. The cache frees an image
+    /// when its last handle drops, so these keep a loading image alive between frames.
+    files: std::cell::RefCell<HashMap<(PathBuf, u128), rune::Image>>,
+    /// How many kept images had loaded at the last poll.
+    done: std::cell::Cell<usize>,
+}
+
+impl Images {
+    pub fn start(&mut self, waker: rune::Waker) {
+        self.cache = Some(Arc::new(rune::ImageCache::new(waker.clone())));
+        self.waker = Some(waker);
+    }
+
+    /// An image file, loaded once and kept while the preview shows it. A file that changed on
+    /// disk loads again.
+    pub fn file(&self, path: &Path) -> Option<rune::Image> {
+        let cache = self.cache.as_ref()?;
+        let t = std::fs::metadata(path).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
+        let mut files = self.files.borrow_mut();
+        if files.len() > 96 {
+            files.clear();
+        }
+        Some(files.entry((path.to_path_buf(), t)).or_insert_with(|| cache.file(path, 1200.0, crate::theme::scale())).clone())
+    }
+
+    /// True when an image loaded since the last call, so the view runs again with its size.
+    pub fn poll(&self) -> bool {
+        let n = self.files.borrow().values().filter(|i| i.is_ready()).count()
+            + self.remote.lock().unwrap_or_else(std::sync::PoisonError::into_inner).values().filter(|r| !matches!(r, Remote::Loading)).count();
+        let changed = n != self.done.get();
+        self.done.set(n);
+        changed
+    }
+
+    /// The folder's image files changed: the next embed lookup lists them again.
+    pub fn forget_index(&self) {
+        *self.index.borrow_mut() = None;
+    }
+
+    /// A web image, downloaded once on another thread. Later calls get it from memory.
+    pub fn remote(&self, url: &str) -> Remote {
+        let mut map = self.remote.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(r) = map.get(url) {
+            return r.clone();
+        }
+        let Some(cache) = self.cache.clone() else { return Remote::Failed("No image cache.".into()) };
+        map.insert(url.to_string(), Remote::Loading);
+        let (slot, waker, url2) = (self.remote.clone(), self.waker.clone(), url.to_string());
+        let _ = std::thread::Builder::new().name("quire-image".into()).spawn(move || {
+            let got = fetch(&url2).map(|bytes| cache.load(bytes));
+            let r = match got {
+                Ok(img) => Remote::Ready(img),
+                Err(e) => Remote::Failed(e),
+            };
+            slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(url2, r);
+            if let Some(w) = waker {
+                w();
+            }
+        });
+        Remote::Loading
+    }
+}
+
+fn fetch(url: &str) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let agent = ureq::AgentBuilder::new().timeout_connect(std::time::Duration::from_secs(10)).timeout(std::time::Duration::from_secs(30)).build();
+    let resp = agent.get(url).call().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    resp.into_reader().take(MAX_BYTES).read_to_end(&mut out).map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
+/// Every image file under `root`, as paths relative to it. Hidden folders stay out.
+pub fn list(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stack = vec![(root.to_path_buf(), String::new())];
+    while let Some((dir, rel)) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') || name == "node_modules" {
+                continue;
+            }
+            let child = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
+            match e.file_type() {
+                Ok(t) if t.is_dir() => stack.push((e.path(), child)),
+                Ok(t) if t.is_file() && md::is_image(&name) => out.push(child),
+                _ => {}
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// `name` with a number before the extension until no file in `dir` has it.
+fn unique(dir: &Path, name: &str) -> String {
+    let (stem, ext) = name.rsplit_once('.').map_or((name, ""), |(s, e)| (s, e));
+    let mut n = 1;
+    loop {
+        let cand = match (n, ext.is_empty()) {
+            (1, true) => stem.to_string(),
+            (1, false) => format!("{stem}.{ext}"),
+            (_, true) => format!("{stem} {n}"),
+            (_, false) => format!("{stem} {n}.{ext}"),
+        };
+        if !dir.join(&cand).exists() {
+            return cand;
+        }
+        n += 1;
+    }
+}
+
+impl App {
+    /// Where the pixels of an image in the active note come from.
+    pub fn image_source(&self, img: &Img) -> Source {
+        let src = img.src.trim();
+        if src.starts_with("http://") || src.starts_with("https://") {
+            return Source::Url(src.to_string());
+        }
+        let Some(v) = &self.vault else { return Source::Missing(src.to_string()) };
+        let dir = self.active.as_deref().map_or("", md::dir);
+        if img.embed {
+            let mut idx = self.images.index.borrow_mut();
+            let all = idx.get_or_insert_with(|| list(&v.path));
+            let want = src.to_lowercase();
+            let name = want.rsplit('/').next().unwrap_or(&want).to_string();
+            // The exact path first, then the same name in the note's folder, then anywhere.
+            let hit = all
+                .iter()
+                .find(|p| p.to_lowercase() == want)
+                .or_else(|| all.iter().find(|p| md::dir(p) == dir && p.to_lowercase().ends_with(&name)))
+                .or_else(|| all.iter().find(|p| p.rsplit('/').next().is_some_and(|n| n.to_lowercase() == name)));
+            return hit.map_or_else(|| Source::Missing(src.to_string()), |p| Source::File(v.path.join(p)));
+        }
+        if let Some(p) = src.strip_prefix("file://") {
+            return Source::File(PathBuf::from(p));
+        }
+        if Path::new(src).is_absolute() {
+            return Source::File(PathBuf::from(src));
+        }
+        // Relative to the note, as Markdown means it, then relative to the notes folder.
+        for base in [dir, ""] {
+            if let Some(rel) = md::resolve(base, src) {
+                let p = v.path.join(&rel);
+                if p.is_file() {
+                    return Source::File(p);
+                }
+            }
+        }
+        Source::Missing(src.to_string())
+    }
+
+    /// Links image files at the caret of the active note. Files from outside the notes folder
+    /// are copied into `attachments/` first. False when none of the files is an image.
+    pub fn insert_images(&mut self, paths: &[PathBuf], tx: &mut Tx) -> bool {
+        let Some(root) = self.vault.as_ref().map(|v| v.path.clone()) else { return false };
+        if self.active.is_none() {
+            self.notice = Some("Open a note first, then add the image to it.".into());
+            return false;
+        }
+        let images: Vec<&PathBuf> = paths.iter().filter(|p| md::is_image(&p.to_string_lossy())).collect();
+        if images.is_empty() {
+            if !paths.is_empty() {
+                self.notice = Some("Only images can go into a note: PNG, JPEG, GIF, WebP, BMP, SVG or AVIF.".into());
+            }
+            return false;
+        }
+        let mut rels = Vec::new();
+        for p in images {
+            let inside = p.canonicalize().ok().zip(root.canonicalize().ok()).and_then(|(p, r)| p.strip_prefix(&r).ok().map(Path::to_path_buf));
+            let rel = match inside {
+                Some(r) if !r.components().any(|c| c.as_os_str().to_string_lossy().starts_with('.')) => r.to_string_lossy().replace('\\', "/"),
+                _ => {
+                    if std::fs::metadata(p).map_or(0, |m| m.len()) > MAX_BYTES {
+                        self.notice = Some(format!("{} is larger than 50 MB, so Quire did not add it.", p.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())));
+                        continue;
+                    }
+                    let dir = root.join(ATTACHMENTS);
+                    let name = p.file_name().map_or_else(|| "image.png".to_string(), |n| n.to_string_lossy().into_owned());
+                    let name = unique(&dir, &name);
+                    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(p, dir.join(&name))) {
+                        self.notice = Some(format!("Could not copy {name}: {e}"));
+                        continue;
+                    }
+                    format!("{ATTACHMENTS}/{name}")
+                }
+            };
+            rels.push(rel);
+        }
+        self.link_images(&rels, tx)
+    }
+
+    /// Saves pasted PNG bytes into `attachments/` and links them at the caret.
+    pub fn paste_image(&mut self, png: &[u8], tx: &mut Tx) -> bool {
+        let Some(root) = self.vault.as_ref().map(|v| v.path.clone()) else { return false };
+        if self.active.is_none() {
+            return false;
+        }
+        let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64);
+        let t = rune::LocalTime::at(ms);
+        let name = format!("Pasted image {:04}-{:02}-{:02} {:02}.{:02}.{:02}.png", t.year, t.month, t.day, t.hour, t.minute, t.second);
+        let dir = root.join(ATTACHMENTS);
+        let name = unique(&dir, &name);
+        if let Err(e) = std::fs::create_dir_all(&dir).and_then(|_| crate::vault::write_atomic(&dir.join(&name), png)) {
+            self.notice = Some(format!("Could not save the pasted image: {e}"));
+            return false;
+        }
+        self.link_images(&[format!("{ATTACHMENTS}/{name}")], tx)
+    }
+
+    /// A paste into the editor: image files and a copied image become links. Other pastes
+    /// go to the text field as usual.
+    pub fn paste_content(&mut self, content: &rune::ClipboardContent, tx: &mut Tx) -> bool {
+        if content.files().iter().any(|f| md::is_image(&f.to_string_lossy())) {
+            return self.insert_images(content.files(), tx);
+        }
+        match content.image() {
+            Some(img) if content.text().trim().is_empty() => self.paste_image(img.png(), tx),
+            _ => false,
+        }
+    }
+
+    /// Asks for an image file, then links it in the active note.
+    pub fn pick_image(&mut self, tx: &mut Tx) {
+        if self.active.is_none() {
+            return;
+        }
+        let options = FileDialogOptions { title: "Insert an image".into(), directory: Some(crate::store::documents_dir()), ..Default::default() }.filter("Images", &md::IMAGE_EXT);
+        tx.open_file(options, |s: &mut App, result, tx| match result {
+            Ok(Some(path)) => {
+                s.insert_images(&[path], tx);
+            }
+            Ok(None) => {}
+            Err(e) => s.notice = Some(format!("Could not show the file picker: {e}")),
+        });
+    }
+
+    /// Writes `![name](path)` lines at the caret, each on a line of its own.
+    fn link_images(&mut self, rels: &[String], tx: &mut Tx) -> bool {
+        if rels.is_empty() {
+            return false;
+        }
+        let dir = self.active.as_deref().map_or("", md::dir).to_string();
+        let lines: Vec<String> = rels
+            .iter()
+            .map(|r| {
+                let file = r.rsplit('/').next().unwrap_or(r);
+                let alt = file.rsplit_once('.').map_or(file, |(b, _)| b);
+                format!("![{}]({})", alt.replace(['[', ']'], ""), md::link_path(&md::relative(&dir, r)))
+            })
+            .collect();
+        let e = self.cur_edit();
+        let caret = e.focus.min(e.text.len());
+        let before = e.text[..caret].chars().last();
+        let after = e.text[caret..].chars().next();
+        let mut s = String::new();
+        if before.is_some_and(|c| c != '\n') {
+            s.push('\n');
+        }
+        s.push_str(&lines.join("\n"));
+        if after.is_none_or(|c| c != '\n') {
+            s.push('\n');
+        }
+        e.paste(&s);
+        self.after_edit();
+        self.images.forget_index();
+        self.focus_editor(tx);
+        true
+    }
+}

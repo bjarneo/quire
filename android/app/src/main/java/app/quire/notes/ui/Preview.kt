@@ -57,6 +57,7 @@ import app.quire.notes.core.BHead
 import app.quire.notes.core.BHr
 import app.quire.notes.core.BList
 import app.quire.notes.core.BPara
+import app.quire.notes.core.BImage
 import app.quire.notes.core.BQuote
 import app.quire.notes.core.Block
 import app.quire.notes.core.LItem
@@ -179,6 +180,7 @@ private fun margins(b: Block): Pair<Float, Float> = when (b) {
     is BCode -> 1.2f * 0.74f to 1.3f * 0.74f
     is BHr -> 2.2f to 2.2f
     is BList -> 0.25f to 1f
+    is BImage -> 0.4f to 0.95f
 }
 
 @Composable
@@ -234,6 +236,9 @@ private fun BlockView(
             )
         }
         is BHr -> Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        is BImage -> Column(verticalArrangement = Arrangement.spacedBy(em(0.6f))) {
+            b.images.forEach { img -> Picture(vm, img, c, root.fontSize, em) }
+        }
         is BList -> Column(verticalArrangement = Arrangement.spacedBy(em(0.25f))) {
             b.items.forEach { item -> ListRow(item, root, mono, c, vm, em) { s -> remember(s, c, names) { rich(s) } } }
         }

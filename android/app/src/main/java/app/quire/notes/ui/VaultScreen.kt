@@ -1,8 +1,14 @@
 package app.quire.notes.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,6 +40,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -55,12 +62,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.mimeTypes
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -69,10 +79,15 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,6 +107,17 @@ fun VaultScreen(vm: QuireViewModel) {
         snapshotFlow { drawer.currentValue }.collect { if (it == DrawerValue.Closed && vm.drawerOpen) vm.drawerOpen = false }
     }
     BackHandler(enabled = vm.focus || vm.renaming || vm.drawerOpen || vm.vaultMenu || vm.outlineOpen) { vm.onBack() }
+
+    // Insert image opens the photo picker of Android, for images only.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.insertImages(listOf(uri))
+    }
+    LaunchedEffect(vm.pickImage) {
+        if (vm.pickImage) {
+            vm.pickImage = false
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+    }
 
     // A layer on top of the editor takes the focus away, so the keyboard and the caret handles close.
     val focusManager = LocalFocusManager.current
@@ -131,10 +157,13 @@ fun VaultScreen(vm: QuireViewModel) {
                     TopBar(vm)
                     TabStrip(vm)
                 }
-                Box(Modifier.weight(1f).fillMaxWidth().background(c.bg)) {
+                Box(Modifier.weight(1f).fillMaxWidth().background(c.bg).imageDrop(vm)) {
                     EditorArea(vm, screenH)
                 }
                 if (vm.active != null && !vm.focus) StatusBar(vm)
+                // The Markdown toolbar sits on the keyboard while the editor has the focus.
+                val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+                if (vm.active != null && vm.mode == Mode.Source && vm.editorFocused && keyboard) MarkdownBar(vm)
             }
         }
         if (vm.outlineOpen && vm.active != null) OutlineSheet(vm)
@@ -530,5 +559,93 @@ private fun OutlineSheet(vm: QuireViewModel) {
             }
             if (backlinks.isEmpty()) Txt("No notes link here yet.", 13.sp, c.mute, Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
         }
+    }
+}
+
+/**
+ * Takes images that another app drops on the note, in split screen or in desktop mode. They go
+ * into attachments/ and get a link at the caret.
+ */
+@Composable
+private fun Modifier.imageDrop(vm: QuireViewModel): Modifier {
+    val activity = LocalActivity.current
+    val target = remember(vm, activity) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val drag = event.toAndroidDragEvent()
+                // Files from another app need this permission while Quire reads them.
+                activity?.requestDragAndDropPermissions(drag)
+                val clip = drag.clipData ?: return false
+                val uris = (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+                if (uris.isEmpty()) return false
+                vm.insertImages(uris)
+                return true
+            }
+        }
+    }
+    return dragAndDropTarget(
+        shouldStartDragAndDrop = { e -> vm.active != null && e.mimeTypes().any { it.startsWith("image/") } },
+        target = target,
+    )
+}
+
+/** One row of Markdown actions. It scrolls sideways when it does not fit. */
+@Composable
+private fun MarkdownBar(vm: QuireViewModel) {
+    val c = LocalQ.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .background(c.side)
+            .drawBehind { drawLine(c.line, Offset(0f, 0.5f), Offset(size.width, 0.5f), 1.dp.toPx()) }
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        vm.toolbar.forEach { a ->
+            val label = toolLabel(a)
+            Box(
+                Modifier
+                    .size(42.dp, 38.dp)
+                    .tap(RoundedCornerShape(6.dp)) { vm.format(a) }
+                    .semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) { ToolGlyph(a, c) }
+        }
+    }
+}
+
+private fun toolLabel(a: String) = when (a) {
+    "bold" -> "Bold"
+    "italic" -> "Italic"
+    "strike" -> "Strikethrough"
+    "heading" -> "Heading"
+    "link" -> "Link"
+    "noteLink" -> "Note link"
+    "bullet" -> "Bulleted list"
+    "number" -> "Numbered list"
+    "task" -> "Task"
+    "quote" -> "Quote"
+    "code" -> "Code"
+    else -> "Image"
+}
+
+@Composable
+private fun ToolGlyph(a: String, c: QColors) {
+    val ink = c.ink2
+    when (a) {
+        "bold" -> Txt("B", 16.sp, ink, weight = FontWeight.W700)
+        "italic" -> Txt("I", 17.sp, ink, family = QFonts.serifText, italic = true)
+        "strike" -> BasicText("S", style = TextStyle(fontFamily = QFonts.sans, fontSize = 16.sp, color = ink, textDecoration = TextDecoration.LineThrough))
+        "heading" -> Txt("H", 16.sp, ink, weight = FontWeight.W600)
+        "link" -> QIcon(QIcons.LINK, 16f, 16.dp, 1.3f, ink)
+        "noteLink" -> Mono("[[ ]]", 12.sp, ink)
+        "bullet" -> QIcon(QIcons.LIST, 16f, 16.dp, 1.3f, ink)
+        "number" -> Mono("1.", 13.sp, ink)
+        "task" -> QIcon(QIcons.TASK, 16f, 16.dp, 1.3f, ink)
+        "quote" -> QIcon(QIcons.QUOTE, 16f, 16.dp, 1.3f, ink)
+        "code" -> QIcon(QIcons.CODE, 16f, 16.dp, 1.3f, ink)
+        else -> QIcon(QIcons.IMAGE, 16f, 16.dp, 1.25f, ink)
     }
 }

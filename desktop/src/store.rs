@@ -29,6 +29,8 @@ pub struct Settings {
     pub continue_lists: bool,
     pub dim_focus: bool,
     pub typewriter: bool,
+    /// The formatting toolbar above the note, in source mode.
+    pub toolbar: bool,
     pub update_links: bool,
     pub new_folder: String,
     pub sync: Sync,
@@ -50,6 +52,7 @@ impl Default for Settings {
             continue_lists: true,
             dim_focus: true,
             typewriter: true,
+            toolbar: true,
             update_links: true,
             new_folder: String::new(),
             sync: Sync::default(),
@@ -71,11 +74,14 @@ pub struct Sync {
     pub connected: bool,
     /// When the last sync finished, in milliseconds since 1970.
     pub last_sync: Option<i64>,
+    /// The remote folder of each notes folder, by its path. A notes folder without one uses
+    /// `quire/<folder name>/`, so two notes folders never share a remote folder by accident.
+    pub folders: BTreeMap<String, String>,
 }
 
 impl Default for Sync {
     fn default() -> Self {
-        Sync { provider: "none".into(), cfg: BTreeMap::new(), when: "save".into(), encrypt: false, pass: String::new(), connected: false, last_sync: None }
+        Sync { provider: "none".into(), cfg: BTreeMap::new(), when: "save".into(), encrypt: false, pass: String::new(), connected: false, last_sync: None, folders: BTreeMap::new() }
     }
 }
 

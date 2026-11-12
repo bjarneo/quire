@@ -13,8 +13,10 @@ class ThemesTest {
 
     @Test
     fun everyThemeReads() {
-        assertEquals(12, Themes.list.size)
-        assertEquals(5, Themes.list.count { !it.dark })
+        assertEquals(14, Themes.list.size)
+        assertEquals(6, Themes.list.count { !it.dark })
+        assertEquals(listOf("paper", "white"), Themes.list.filter { !it.dark }.take(2).map { it.id })
+        assertEquals(listOf("ink", "black"), Themes.list.filter { it.dark }.take(2).map { it.id })
         for (t in Themes.list) {
             val p = Themes.themePal(t.id, t.dark)
             assertEquals(t.id, t.dark, p.dark)

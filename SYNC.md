@@ -18,11 +18,12 @@ in `/`, unless it is empty.
 | `.quire/format.json` | Plain JSON. It tells if the notes are encrypted, and holds the key salt. |
 | `.quire/manifest.json` | The manifest as plain JSON, for a folder that is not encrypted. |
 | `.quire/manifest.bin` | The manifest as a sealed blob, for an encrypted folder. |
-| `<path>` | The text of one note, for a folder that is not encrypted. Example: `Drafts/Plan.md`. |
-| `objects/<name>.bin` | The sealed text of one note, for an encrypted folder. |
+| `<path>` | The text of one note or the bytes of one image, for a folder that is not encrypted. Example: `Drafts/Plan.md`. |
+| `objects/<name>.bin` | The sealed text of one note or the sealed bytes of one image, for an encrypted folder. |
 
-A note path is relative to the notes folder and uses `/` between folders. Only files that end in
-`.md` sync. Files and folders whose names start with `.` do not sync, and neither does
+A note path is relative to the notes folder and uses `/` between folders. Notes are the files
+that end in `.md`. Images sync too: the files that end in `.png`, `.jpg`, `.jpeg`, `.gif`,
+`.webp`, `.bmp`, `.svg` or `.avif`, in any letter case, up to 50 MB each. No other file syncs. Files and folders whose names start with `.` do not sync, and neither does
 `node_modules`. Line endings are `\n`. An app converts `\r\n` to `\n` when it reads a note.
 
 ## Format file
@@ -52,7 +53,7 @@ writes this file. Every later device reads it first and stops with an error in t
   "version": 1,
   "files": {
     "Drafts/Plan.md": {
-      "hash": "<SHA-256 of the note text as UTF-8, lowercase hex>",
+      "hash": "<SHA-256 of the note text as UTF-8, or of the image bytes, lowercase hex>",
       "object": "<the key of the note object, under the prefix>",
       "time": 1762941600000,
       "device": "laptop"
@@ -101,6 +102,11 @@ remote hash `R` and the base hash `B`:
 | yes | yes | `B = L` | Only the other device changed the note. Download it. |
 | yes | yes | other | Both changed the note. See the next section. |
 
+Images use the same table. A manifest entry for an image looks like one for a note.
+
+A path with a `..` part, an empty part or a part that starts with `.` is skipped, and so is a path
+that is neither a note nor an image.
+
 Then compare the folders in the same way. A folder is kept when a note is still in it after the
 note steps. Such a note stayed, came down or went up in this sync.
 
@@ -122,7 +128,8 @@ base. It holds each path that is in step after this sync.
 ## Conflicts
 
 When both sides changed a note, the device keeps its own text at the path and uploads it. The
-remote text goes to a new note beside it, named `<name> (conflict <device>).md`. The device
+remote text goes to a new note beside it, named `<name> (conflict <device>).md`. An image follows
+the same rule and keeps its extension, as in `cat (conflict laptop).png`. The device
 uploads that copy at once, so every device gets both versions. If the name is taken, the device
 adds a number: `<name> (conflict <device> 2).md`.
 
@@ -176,6 +183,13 @@ and `hmacSecret`.
 key, and each request carries a Shared Key signature. With `azAuth` set to `sas`, `azKey` is a
 SAS token that the app appends to the URL as the query string. The token needs read, write,
 create and delete permissions on the container.
+
+## Requests
+
+A device tries a request again up to 4 times, after 0.5, 1, 2 and 4 seconds, when the answer is
+429, 500, 502, 503 or 504, or when the connection fails. It does not try again after a DNS error
+or a URL that is not valid. Each try signs the request again. Downloads, uploads and deletes run
+8 at a time. The manifest is written after all of them.
 
 ## When a device syncs
 

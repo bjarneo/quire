@@ -138,6 +138,9 @@ pub struct App {
     pub tree_menu: Option<crate::folders::TreeMenu>,
     pub new_folder: Option<crate::folders::NewFolder>,
     pub sync: crate::sync::app::SyncState,
+    pub images: crate::images::Images,
+    /// Files are dragged over the note.
+    pub drop_over: bool,
 }
 
 pub fn init() -> App {
@@ -193,8 +196,14 @@ pub fn init() -> App {
         tree_menu: None,
         new_folder: None,
         sync: Default::default(),
+        images: Default::default(),
+        drop_over: false,
     };
     crate::theme::reload_omarchy();
+    // The remote folder used to be one value for every notes folder. Each folder has its own now.
+    for c in app.persist.settings.sync.cfg.values_mut() {
+        c.remove("prefix");
+    }
     app.mode = if app.persist.mode == "preview" { Mode::Preview } else { Mode::Source };
     let target = crate::cli::start_target();
     let note = target.as_ref().and_then(|t| t.1.clone());
@@ -374,6 +383,7 @@ impl App {
         changed |= self.check_link_click(tx);
         changed |= self.apply_outside_changes();
         changed |= self.poll_sync(t, tx);
+        changed |= self.images.poll();
         if self.theme_changed.as_ref().is_some_and(|f| f.swap(false, std::sync::atomic::Ordering::SeqCst)) {
             changed |= crate::theme::reload_omarchy();
         }
@@ -388,6 +398,7 @@ impl App {
     }
 
     pub fn set_waker(&mut self, w: rune::Waker) {
+        self.images.start(w.clone());
         self.theme_changed = Some(crate::watch::watch_theme(w.clone()));
         self.waker = Some(w);
         self.watch_vault();
@@ -991,6 +1002,22 @@ impl App {
     pub fn toggle_settings(&mut self, _tx: &mut Tx) {
         self.settings_open = !self.settings_open;
         self.palette = None;
+    }
+
+    /// A toolbar action on the active note's selection, as one undo step.
+    pub fn format(&mut self, f: crate::format::Fmt, tx: &mut Tx) {
+        if self.active.is_none() || self.mode != Mode::Source {
+            return;
+        }
+        let e = self.cur_edit();
+        let ed = crate::format::apply(&e.text, e.anchor, e.focus, f);
+        e.undo_group(|e| {
+            e.set_selection(ed.start, ed.end);
+            e.insert(&ed.insert);
+            e.set_selection(ed.sel.0, ed.sel.1);
+        });
+        self.after_edit();
+        self.focus_editor(tx);
     }
 
     /// Saves everything, then closes the window.

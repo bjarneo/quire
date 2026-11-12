@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -440,7 +441,12 @@ private fun SyncSection(vm: QuireViewModel) {
     val spec = Sync.spec(pid, cfg, vm.vault?.name ?: "")
     SetBlock(Sync.provider(pid)?.full ?: "", top = 16.dp) {
         Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            spec.forEach { f -> SyncFieldView(vm, f, cfg, f.key in st.missing) }
+            spec.forEach { f ->
+                // The remote folder belongs to the open notes folder, so its field does too.
+                key(if (f.key == "prefix") "sync:prefix:${vm.vault?.id}" else "sync:$pid:${f.key}") {
+                    SyncFieldView(vm, f, cfg, f.key in st.missing)
+                }
+            }
         }
     }
     SetRow("When to sync", "On save uploads a note a moment after you stop typing.") {

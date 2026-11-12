@@ -83,9 +83,15 @@ impl App {
             return None;
         }
         let cfg = sy.cfg.get(&sy.provider).cloned().unwrap_or_default();
-        let name = self.vault.as_ref().map_or_else(|| "notes".to_string(), |v| v.name.clone());
-        let prefix = cfg.get("prefix").filter(|p| !p.trim().is_empty()).cloned().unwrap_or_else(|| format!("quire/{name}/"));
+        let prefix = self.remote_folder();
         Some(Remote { provider: sy.provider.clone(), cfg, prefix: super::clean_prefix(&prefix), encrypt: sy.encrypt, pass: sy.pass.clone() })
+    }
+
+    /// The remote folder of the open notes folder, as the settings show it.
+    pub fn remote_folder(&self) -> String {
+        let Some(v) = &self.vault else { return "quire/notes/".into() };
+        let key = v.path.to_string_lossy().into_owned();
+        self.settings().sync.folders.get(&key).filter(|p| !p.trim().is_empty()).cloned().unwrap_or_else(|| format!("quire/{}/", v.name))
     }
 
     /// Sync is set up and its test passed.
@@ -305,6 +311,29 @@ impl App {
             }
             self.recent.retain(|x| x != &p);
             any = true;
+        }
+        // Images: written when the file here is still what the sync saw, or else as a copy.
+        let file_hash = |p: &std::path::Path| std::fs::read(p).ok().map(|b| super::sign::sha256_hex(&b));
+        let had_images = !out.image_pulls.is_empty() || !out.image_removes.is_empty();
+        for (path, bytes, seen, device) in out.image_pulls {
+            let cur = file_hash(&root.join(&path));
+            let rel = if cur.is_some() && cur != seen {
+                let taken: std::collections::BTreeSet<String> = crate::images::list(&root).into_iter().collect();
+                let c = super::conflict_path(&path, &device, &taken);
+                conflicts.push(c.clone());
+                c
+            } else {
+                path
+            };
+            self.writer.send(Op::WriteBytes { root: root.clone(), rel, bytes });
+        }
+        for (path, seen) in out.image_removes {
+            if file_hash(&root.join(&path)).as_deref() == Some(seen.as_str()) {
+                self.writer.send(Op::Delete { root: root.clone(), rel: path });
+            }
+        }
+        if had_images {
+            self.images.forget_index();
         }
         for f in out.mkdirs {
             if let Some(v) = &mut self.vault

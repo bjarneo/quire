@@ -64,11 +64,11 @@ class FolderDeleteTest {
         val bucket = app.quire.notes.core.sync.Mem()
         val r = Remote("mem", emptyMap(), "", false, "")
         val a = fs.load()
-        val first = SyncEngine.run(bucket, r, a.files, a.folders, "phone", Base())
+        val first = SyncEngine.run(bucket, r, a.files, emptyMap(), a.folders, "phone", Base())
         assertEquals(3, first.uploaded)
         fs.deleteDir("Drafts/Old")
         val b = fs.load()
-        val second = SyncEngine.run(bucket, r, b.files, b.folders, "phone", first.base)
+        val second = SyncEngine.run(bucket, r, b.files, emptyMap(), b.folders, "phone", first.base)
         assertEquals(2, second.deletedRemote)
         assertEquals(setOf(".quire/format.json", ".quire/manifest.json", "Drafts/Keep.md"), bucket.objects.keys)
     }

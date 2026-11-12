@@ -23,6 +23,15 @@ data class BPara(override val line: Int, val text: String) : Block()
 data class LItem(val ind: Int, val mk: String, val task: Boolean, val done: Boolean, val text: String, val line: Int)
 data class BList(override val line: Int, val ordered: Boolean, val items: List<LItem>) : Block()
 
+/** A line of nothing but images. */
+data class BImage(override val line: Int, val images: List<Img>) : Block()
+
+/**
+ * An image in a note: `![alt](src)`, or `![[name]]` as other Markdown apps write an embed.
+ * With [embed], [src] is a file name to find anywhere in the notes folder.
+ */
+data class Img(val alt: String, val src: String, val embed: Boolean)
+
 /** Pure Markdown helpers. Each one follows the prototype in design/Quire.dc.html. */
 object Md {
     val collator: Collator = Collator.getInstance(Locale.ENGLISH)
@@ -256,11 +265,15 @@ object Md {
         return line.replaceRange(m.range, if (m.groupValues[1] == " ") "[x]" else "[ ]")
     }
 
-    /** Finds the wiki link that holds [col] on [line]. Returns the link range in the line and the target. */
+    /**
+     * Finds the wiki link that holds [col] on [line]. Returns the link range in the line and the
+     * target. An embed of an image file is no link, so following it never makes a note.
+     */
     fun linkAt(line: String, col: Int): Pair<IntRange, String>? {
         for (m in wikiRe.findAll(line)) {
             if (col >= m.range.first && col <= m.range.last + 1) {
-                return m.range to m.groupValues[1].split('|')[0].trim()
+                val target = m.groupValues[1].split('|')[0].trim()
+                return if (isImage(target)) null else m.range to target
             }
             if (m.range.first > col) break
         }
@@ -278,7 +291,175 @@ object Md {
 
     fun isHr(l: String) = isHrRe.containsMatchIn(l)
     private fun isList(l: String) = isListRe.containsMatchIn(l)
-    private fun isStart(l: String) = isStartRe.containsMatchIn(l) || isList(l) || isHr(l)
+    private fun isStart(l: String) = isStartRe.containsMatchIn(l) || isList(l) || isHr(l) || imageLine(l) != null
+
+    /** The file types that the preview shows as images, and that sync carries next to the notes. */
+    val IMAGE_EXT = listOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif")
+
+    /** True when [path] names an image file, by its extension. */
+    fun isImage(path: String): Boolean {
+        val i = path.lastIndexOf('.')
+        if (i < 0) return false
+        val e = path.substring(i + 1)
+        return IMAGE_EXT.any { it.equals(e, ignoreCase = true) }
+    }
+
+    /** The images of a line that holds only images, with spaces between them. */
+    fun imageLine(l: String): List<Img>? {
+        var rest = l.trim()
+        if (!rest.startsWith("![")) return null
+        val out = ArrayList<Img>()
+        while (rest.isNotEmpty()) {
+            val (img, used) = imageAt(rest) ?: return null
+            out.add(img)
+            rest = rest.substring(used).trimStart()
+        }
+        return out
+    }
+
+    /** One image at the start of [s], and how many characters it takes. */
+    fun imageAt(s: String): Pair<Img, Int>? {
+        if (s.startsWith("![[")) {
+            val inner = s.substring(3)
+            val end = inner.indexOf("]]")
+            if (end < 0) return null
+            val name = inner.substring(0, end).split('|')[0].trim()
+            if (name.isEmpty() || !isImage(name)) return null
+            val file = name.substringAfterLast('/')
+            val alt = if (file.contains('.')) file.substringBeforeLast('.') else file
+            return Img(alt, name, true) to 3 + end + 2
+        }
+        if (!s.startsWith("![")) return null
+        val inner = s.substring(2)
+        val close = inner.indexOf("](")
+        if (close < 0) return null
+        val alt = inner.substring(0, close)
+        if (alt.any { it == '[' || it == ']' || it == '\n' }) return null
+        val after = inner.substring(close + 2)
+        val end = if (after.startsWith("<")) {
+            val k = after.indexOf(">)")
+            if (k < 0) return null
+            k + 1
+        } else {
+            val k = after.indexOf(')')
+            if (k < 0) return null
+            k
+        }
+        val src = imageSrc(after.substring(0, end))
+        if (src.isEmpty()) return null
+        return Img(alt, src, false) to 2 + close + 2 + end + 1
+    }
+
+    /** The path or URL of `![alt](…)`: without `<…>`, without a `"title"`, with %20 and the other escapes decoded for paths. */
+    fun imageSrc(raw: String): String {
+        val t0 = raw.trim()
+        if (t0.startsWith("<") && t0.endsWith(">") && t0.length >= 2) return t0.substring(1, t0.length - 1)
+        val i = t0.indexOf(" \"")
+        val t = if (i >= 0) t0.substring(0, i) else t0
+        if (t.contains("://")) return t
+        return percentDecode(t)
+    }
+
+    fun percentDecode(s: String): String {
+        val b = s.toByteArray(Charsets.UTF_8)
+        val out = java.io.ByteArrayOutputStream(b.size)
+        fun hex(c: Byte): Int? = Character.digit(c.toInt().toChar(), 16).takeIf { it >= 0 && c.toInt() in 0..127 }
+        var i = 0
+        while (i < b.size) {
+            if (b[i] == '%'.code.toByte() && i + 2 < b.size) {
+                val h = hex(b[i + 1])
+                val l = hex(b[i + 2])
+                if (h != null && l != null) {
+                    out.write(h * 16 + l)
+                    i += 3
+                    continue
+                }
+            }
+            out.write(b[i].toInt())
+            i++
+        }
+        val bytes = out.toByteArray()
+        // Bytes that are not UTF-8 give the text back as it was.
+        val dec = Charsets.UTF_8.newDecoder()
+        return try {
+            dec.decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (e: java.nio.charset.CharacterCodingException) {
+            s
+        }
+    }
+
+    /** A path for a Markdown link: spaces and the characters that end a link become escapes. */
+    fun linkPath(p: String): String {
+        val out = StringBuilder(p.length)
+        for (c in p) {
+            when (c) {
+                ' ' -> out.append("%20")
+                '(' -> out.append("%28")
+                ')' -> out.append("%29")
+                '<' -> out.append("%3C")
+                '>' -> out.append("%3E")
+                else -> out.append(c)
+            }
+        }
+        return out.toString()
+    }
+
+    /** [to] written relative to the folder [fromDir], both relative to the notes folder, with ../ to go up. */
+    fun relative(fromDir: String, to: String): String {
+        val a = fromDir.split('/').filter { it.isNotEmpty() }
+        val b = to.split('/').filter { it.isNotEmpty() }
+        var same = 0
+        while (same < a.size && same < b.size && a[same] == b[same]) same++
+        return (List(a.size - same) { ".." } + b.drop(same)).joinToString("/")
+    }
+
+    /** [rel] inside the folder [dir], with . and .. resolved. Null when it leaves the notes folder. */
+    fun resolvePath(dir: String, rel: String): String? {
+        val parts = if (rel.startsWith("/")) ArrayList() else ArrayList(dir.split('/').filter { it.isNotEmpty() })
+        for (seg in rel.split('/')) {
+            when (seg) {
+                "", "." -> {}
+                ".." -> {
+                    if (parts.isEmpty()) return null
+                    parts.removeAt(parts.size - 1)
+                }
+                else -> parts.add(seg)
+            }
+        }
+        return parts.joinToString("/")
+    }
+
+    /** [name] with a number before the extension, "name 2.png", until [taken] says no file has it. */
+    fun uniqueName(name: String, taken: (String) -> Boolean): String {
+        val i = name.lastIndexOf('.')
+        val stem = if (i >= 0) name.substring(0, i) else name
+        val ext = if (i >= 0) name.substring(i + 1) else ""
+        var n = 1
+        while (true) {
+            val cand = when {
+                n == 1 -> name
+                ext.isEmpty() -> "$stem $n"
+                else -> "$stem $n.$ext"
+            }
+            if (!taken(cand)) return cand
+            n++
+        }
+    }
+
+    /**
+     * The name in .trash for a deleted file: its path with " - " for "/", for example
+     * "Drafts - Plan.md". When [taken] says the name is in use, a number goes before the extension.
+     */
+    fun trashFileName(path: String, taken: (String) -> Boolean): String {
+        val name = path.replace("/", " - ")
+        val i = name.lastIndexOf('.')
+        val stem = if (i >= 0) name.substring(0, i) else name
+        val ext = if (i >= 0) name.substring(i + 1) else "md"
+        var cand = name
+        var n = 2
+        while (taken(cand)) cand = "$stem ${n++}.$ext"
+        return cand
+    }
 
     fun parseBlocks(text: String): List<Block> {
         val lines = text.split('\n')
@@ -308,6 +489,12 @@ object Md {
             }
             if (isHr(ln)) {
                 out.add(BHr(start))
+                i++
+                continue
+            }
+            val images = imageLine(ln)
+            if (images != null) {
+                out.add(BImage(start, images))
                 i++
                 continue
             }

@@ -43,22 +43,36 @@ class Device(tag: String, val name: String) {
 
     fun isDir(p: String) = File(root, p).isDirectory
 
+    /** How many times a sync read the bytes of an image. */
+    var reads = 0
+
     /** The notes and folders as the app loads them, with the file system of the app. */
     fun local(): Pair<Map<String, String>, Set<String>> = LocalFs(root).load().let { it.files to it.folders }
 
+    fun bytes(p: String): ByteArray? = File(root, p).takeIf { it.isFile }?.readBytes()
+
     fun run(store: ObjStore, r: Remote): Outcome {
-        val (files, dirs) = local()
-        return SyncEngine.run(store, r, files, dirs, name, SyncEngine.loadBase(baseFile))
+        val l = LocalFs(root).load()
+        val images = l.images.mapValues { (p, st) ->
+            LocalImage(st.size, st.time) {
+                reads++
+                File(root, p).readBytes()
+            }
+        }
+        return SyncEngine.run(store, r, l.files, images, l.folders, name, SyncEngine.loadBase(baseFile))
     }
 
     /** Syncs, then applies the outcome as the app does, then saves the base. */
     fun sync(store: ObjStore, r: Remote, dirty: Set<String> = emptySet()): Outcome {
         val out = run(store, r)
-        val (files, dirs) = local()
-        val plan = SyncEngine.plan(out, files, dirs, dirty)
+        val l = LocalFs(root).load()
+        val plan = SyncEngine.plan(out, l.files, l.folders, dirty)
+        val pics = SyncEngine.planImages(out, l.images.keys) { p -> bytes(p)?.let { Sign.sha256Hex(it) } }
         val fs = LocalFs(root)
         for ((p, t) in plan.writes) fs.write(p, t)
         for (p in plan.deletes) fs.delete(p)
+        for ((p, b) in pics.writes) fs.writeBytes(p, b)
+        for (p in pics.deletes) fs.delete(p)
         for (d in plan.mkdirs) fs.mkdirs(d)
         for (d in plan.rmdirs) fs.deleteDir(d)
         SyncEngine.saveBase(baseFile, out.base)
@@ -174,7 +188,7 @@ class SyncEngineTest {
             assertTrue(x.message, x.message!!.contains("encrypted"))
         }
         try {
-            SyncEngine.run(remote(true, "short"), emptyMap(), emptySet(), "phone", Base())
+            SyncEngine.run(remote(true, "short"), emptyMap(), emptyMap(), emptySet(), "phone", Base())
             fail("a short passphrase synced")
         } catch (x: SyncException) {
             assertEquals("The passphrase needs at least 12 characters.", x.message)
@@ -279,9 +293,100 @@ class SyncEngineTest {
         f.writeText("""{"A.md":"aa","B/C.md":"cc"}""")
         assertEquals(Base(mapOf("A.md" to "aa", "B/C.md" to "cc")), SyncEngine.loadBase(f))
         SyncEngine.saveBase(f, Base(mapOf("A.md" to "aa"), setOf("B", "A")))
-        assertEquals("""{"files":{"A.md":"aa"},"folders":["A","B"]}""", f.readText())
+        assertEquals("""{"files":{"A.md":"aa"},"folders":["A","B"],"stamps":{}}""", f.readText())
         assertEquals(Base(mapOf("A.md" to "aa"), setOf("A", "B")), SyncEngine.loadBase(f))
+        // The stamps take the form of the desktop record: size, time and hash.
+        val b = Base(mapOf("a.png" to "hh"), emptySet(), mapOf("a.png" to ImgStamp(5000, 1762941600000, "hh")))
+        SyncEngine.saveBase(f, b)
+        assertEquals("""{"files":{"a.png":"hh"},"folders":[],"stamps":{"a.png":[5000,1762941600000,"hh"]}}""", f.readText())
+        assertEquals(b, SyncEngine.loadBase(f))
         assertEquals(Base(), SyncEngine.loadBase(File(f.parentFile, "missing.json")))
+    }
+
+    /** Images sync beside the notes: plain and encrypted, edits and deletes carry over, and a change on both sides keeps both images. */
+    @Test
+    fun imagesSyncWithTheNotes() {
+        for (encrypt in listOf(false, true)) {
+            val bucket = Mem()
+            val r = remote(encrypt)
+            val tag = "img-$encrypt"
+            val laptop = Device(tag, "laptop")
+            val phone = Device(tag, "phone")
+            val png = ByteArray(5000) { (it % 256).toByte() }
+            File(laptop.root, "attachments").mkdirs()
+            File(laptop.root, "attachments/cat.png").writeBytes(png)
+            File(laptop.root, "attachments/notes.txt").writeText("not synced")
+            laptop.write("Pics.md", "![cat](attachments/cat.png)")
+            assertEquals("the note and the image, not the text file", 2, laptop.sync(bucket, r).uploaded)
+            val out = phone.sync(bucket, r)
+            assertEquals(1, out.imagePulls.size)
+            assertTrue(png.contentEquals(phone.bytes("attachments/cat.png")))
+            // A quiet sync reads no image again and changes nothing.
+            laptop.reads = 0
+            val quiet = laptop.sync(bucket, r)
+            assertEquals(0 to 0, quiet.uploaded to quiet.imagePulls.size)
+            assertEquals("the stamp saves the read", 0, laptop.reads)
+            // An edit on the phone reaches the laptop.
+            Thread.sleep(20)
+            File(phone.root, "attachments/cat.png").writeBytes("new pixels".toByteArray())
+            phone.sync(bucket, r)
+            laptop.sync(bucket, r)
+            assertEquals("new pixels", String(laptop.bytes("attachments/cat.png")!!))
+            // Both change it: each keeps its own, and the other comes in beside it.
+            Thread.sleep(20)
+            File(laptop.root, "attachments/cat.png").writeBytes("laptop pixels".toByteArray())
+            File(phone.root, "attachments/cat.png").writeBytes("phone pixels".toByteArray())
+            laptop.sync(bucket, r)
+            val both = phone.sync(bucket, r)
+            assertEquals(listOf("attachments/cat (conflict laptop).png"), both.conflicts)
+            assertEquals("laptop pixels", String(phone.bytes("attachments/cat (conflict laptop).png")!!))
+            assertEquals("phone pixels", String(phone.bytes("attachments/cat.png")!!))
+            // The laptop gets both versions too.
+            laptop.sync(bucket, r)
+            assertEquals("phone pixels", String(laptop.bytes("attachments/cat.png")!!))
+            assertEquals("laptop pixels", String(laptop.bytes("attachments/cat (conflict laptop).png")!!))
+            // A delete on the phone removes it on the laptop, into the trash with its extension.
+            assertTrue(File(phone.root, "attachments/cat (conflict laptop).png").delete())
+            phone.sync(bucket, r)
+            laptop.sync(bucket, r)
+            laptop.sync(bucket, r)
+            assertNull(laptop.bytes("attachments/cat (conflict laptop).png"))
+            assertEquals("laptop pixels", String(laptop.bytes(".trash/attachments - cat (conflict laptop).png")!!))
+            // The attachments folder stays, because an image is kept in it.
+            assertTrue(laptop.isDir("attachments") && phone.isDir("attachments"))
+            if (encrypt) {
+                assertTrue("image names are hidden: ${bucket.objects.keys}", bucket.objects.keys.none { it.contains("cat") })
+            } else {
+                assertTrue(bucket.objects.keys.toString(), "attachments/cat.png" in bucket.objects.keys)
+            }
+        }
+    }
+
+    @Test
+    fun anImageThatChangedDuringTheSyncKeepsItsBytes() {
+        val bucket = Mem()
+        val r = remote(false)
+        val laptop = Device("imgguard", "laptop")
+        val phone = Device("imgguard", "phone")
+        File(laptop.root, "a.png").writeBytes("one".toByteArray())
+        File(laptop.root, "b.png").writeBytes("bee".toByteArray())
+        laptop.sync(bucket, r)
+        phone.sync(bucket, r)
+        Thread.sleep(20)
+        File(laptop.root, "a.png").writeBytes("two".toByteArray())
+        assertTrue(File(laptop.root, "b.png").delete())
+        laptop.sync(bucket, r)
+        val out = phone.run(bucket, r)
+        assertEquals(listOf("a.png"), out.imagePulls.map { it.path })
+        assertEquals(listOf("b.png"), out.imageRemoves.map { it.first })
+        // The person changes both images before the outcome lands.
+        val now = mapOf("a.png" to Sign.sha256Hex("mine"), "b.png" to Sign.sha256Hex("mine too"))
+        val plan = SyncEngine.planImages(out, now.keys) { now[it] }
+        assertEquals(listOf("a (conflict laptop).png"), plan.writes.map { it.first })
+        assertEquals(emptyList<String>(), plan.deletes)
+        val clean = SyncEngine.planImages(out, setOf("a.png", "b.png")) { p -> Sign.sha256Hex(if (p == "a.png") "one" else "bee") }
+        assertEquals(listOf("a.png"), clean.writes.map { it.first })
+        assertEquals(listOf("b.png"), clean.deletes)
     }
 
     @Test
@@ -293,6 +398,21 @@ class SyncEngineTest {
         // Test connection only reads.
         assertTrue(bucket.objects.isEmpty())
         Device("test", "laptop").also { it.write("A.md", "a") }.sync(bucket, r)
-        assertEquals("Connected to mem. It holds 1 note.", SyncEngine.test(r, 0, false, bucket))
+        assertEquals("Connected to mem. It holds 1 note.", SyncEngine.test(r, 0, true, bucket))
+        assertEquals(
+            "Connected to mem. The bucket holds 1 note, and this folder has 4 notes. The first sync brings them together.",
+            SyncEngine.test(r, 4, false, bucket),
+        )
+        // Images count apart from the notes, and the message names the remote folder.
+        val pics = Mem()
+        val inFolder = Remote("mem", emptyMap(), "quire/Field Notes/", false, "")
+        val d = Device("test2", "laptop")
+        File(d.root, "cat.png").writeBytes(byteArrayOf(1, 2))
+        d.write("A.md", "a")
+        d.sync(pics, inFolder)
+        assertEquals(
+            "Connected to mem. The remote folder quire/Field Notes holds 1 note and 1 image, and this folder has 3 notes. The first sync brings them together.",
+            SyncEngine.test(inFolder, 3, false, pics),
+        )
     }
 }

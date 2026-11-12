@@ -93,6 +93,8 @@ pub enum Op {
     Write { root: PathBuf, rel: String, text: String },
     Rename { root: PathBuf, from: String, to: String },
     Delete { root: PathBuf, rel: String },
+    /// Writes a file that is not a note, such as an image from sync.
+    WriteBytes { root: PathBuf, rel: String, bytes: Vec<u8> },
     /// Moves a folder, with every file in it, to `.trash`.
     DeleteFolder { root: PathBuf, rel: String },
     Mkdir { root: PathBuf, rel: String },
@@ -143,7 +145,7 @@ impl Writer {
                     if let Err(e) = apply(&op) {
                         failed2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         let what = match &op {
-                            Op::Write { rel, .. } | Op::Delete { rel, .. } | Op::DeleteFolder { rel, .. } | Op::Mkdir { rel, .. } => rel.clone(),
+                            Op::Write { rel, .. } | Op::WriteBytes { rel, .. } | Op::Delete { rel, .. } | Op::DeleteFolder { rel, .. } | Op::Mkdir { rel, .. } => rel.clone(),
                             Op::Rename { from, .. } => from.clone(),
                             Op::SaveState(_) => "settings".into(),
                             Op::Barrier(_) | Op::SaveSyncBase { .. } => String::new(),
@@ -215,16 +217,18 @@ fn apply(op: &Op) -> std::io::Result<()> {
             }
             std::fs::rename(root.join(from), dst)
         }
+        Op::WriteBytes { root, rel, bytes } => write_atomic(&root.join(rel), bytes),
         Op::Delete { root, rel } => {
-            // Move the note to `.trash` inside the folder, so it can come back.
+            // Move the file to `.trash` inside the folder, so it can come back.
             let src = root.join(rel);
             let trash = root.join(".trash");
             std::fs::create_dir_all(&trash)?;
             let name = rel.replace('/', " - ");
+            let (stem, ext) = name.rsplit_once('.').map_or((name.as_str(), "md"), |(s, e)| (s, e));
             let mut dst = trash.join(&name);
             let mut n = 2;
             while dst.exists() {
-                dst = trash.join(format!("{} {n}.md", crate::md::strip_md(&name)));
+                dst = trash.join(format!("{stem} {n}.{ext}"));
                 n += 1;
             }
             std::fs::rename(src, dst)

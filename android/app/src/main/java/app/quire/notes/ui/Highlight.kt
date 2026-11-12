@@ -73,10 +73,16 @@ object Highlighter {
                 }
                 m.groups[2] != null -> {
                     val inner = t.substring(2, t.length - 2)
-                    val ok = Md.resolve(x.names, inner.split('|')[0]) != null
+                    val target = inner.split('|')[0]
                     x.mk(st, st + 2)
-                    x.sp(st + 2, en - 2, merge(base, SpanStyle(color = if (ok) c.acc else c.mute)))
-                    x.deco(st + 2, en - 2, if (ok) c.linkLine else c.mark, DecoKind.Underline, dashed = !ok)
+                    if (Md.isImage(target.trim())) {
+                        // An embed of an image is no note link: the second ink, with no underline.
+                        x.sp(st + 2, en - 2, merge(base, SpanStyle(color = c.ink2)))
+                    } else {
+                        val ok = Md.resolve(x.names, target) != null
+                        x.sp(st + 2, en - 2, merge(base, SpanStyle(color = if (ok) c.acc else c.mute)))
+                        x.deco(st + 2, en - 2, if (ok) c.linkLine else c.mark, DecoKind.Underline, dashed = !ok)
+                    }
                     x.mk(en - 2, en)
                 }
                 m.groups[3] != null -> {
@@ -208,9 +214,16 @@ object Inline {
     ) {
         var last = 0
         for (m in inlineRe.findAll(s)) {
-            if (m.range.first > last) b.append(s.substring(last, m.range.first))
+            // `![alt](src)` inside a sentence shows its alt text. Lines of images are blocks.
+            val image = m.groups[6] != null && m.range.first > last && s[m.range.first - 1] == '!'
+            val preEnd = if (image) m.range.first - 1 else m.range.first
+            if (preEnd > last) b.append(s.substring(last, preEnd))
             val t = m.value
             when {
+                image -> {
+                    val j = t.indexOf("](")
+                    b.withStyle(SpanStyle(color = c.mute, fontStyle = FontStyle.Italic)) { append(if (j > 1) t.substring(1, j) else "image") }
+                }
                 m.groups[1] != null -> {
                     val st = b.length
                     b.append(PAD)

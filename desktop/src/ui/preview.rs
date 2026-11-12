@@ -3,7 +3,7 @@
 use rune::{Color, El, Family, Link, Span, TextStyle, Tx, col, el, icon, rich, row, text};
 
 use super::V;
-use super::widgets::CHECK;
+use super::widgets::{CHECK, label};
 use crate::app::App;
 use crate::md::{self, Block, Tok};
 use crate::theme::{self, Pal};
@@ -59,8 +59,11 @@ impl Rich {
     fn inline(&mut self, s: &str, cx: Ctx, p: &Pal, look: &Look, names: &md::Names, base_color: Option<Color>) {
         let mut last = 0;
         for (t, r) in md::inline_tokens(s) {
-            if r.start > last {
-                self.push(&s[last..r.start], cx, base_color);
+            // `![alt](src)` inside a sentence shows its alt text. Lines of images are blocks.
+            let image = t == Tok::Link && r.start > last && s[..r.start].ends_with('!');
+            let pre_end = if image { r.start - 1 } else { r.start };
+            if pre_end > last {
+                self.push(&s[last..pre_end], cx, base_color);
             }
             let tok = &s[r.clone()];
             match t {
@@ -96,6 +99,13 @@ impl Rich {
                     self.push(&tok[2..tok.len() - 2], cx, Some(p.mute));
                     let b = self.text.len();
                     self.strikes.push((a, b, Some(p.mute)));
+                }
+                Tok::Link if image => {
+                    let j = tok.find("](").unwrap_or(tok.len());
+                    let a = self.text.len();
+                    self.text.push_str(if j > 1 { &tok[1..j] } else { "image" });
+                    let b = self.text.len();
+                    self.spans.push(Span { color: Some(p.mute), italic: true, ..Span::new(a, b) });
                 }
                 Tok::Link => {
                     let j = tok.find("](").unwrap_or(tok.len());
@@ -206,6 +216,13 @@ fn block(v: V, look: &Look, names: &md::Names, b: Block) -> (f32, f32, El) {
     let em = look.size;
     let body = look.body();
     match b {
+        Block::Image { line, images } => {
+            let mut c = col().key(format!("pv-{line}")).w_full().gap(em * 0.6);
+            for (i, img) in images.iter().enumerate() {
+                c = c.child(picture(v, img, look).key(format!("img-{i}")));
+            }
+            (em * 0.4, em * 0.95, c)
+        }
         Block::Pre { line, text: t } => {
             let style = TextStyle::new((em * 0.74).round(), 400.0).family(look.mono).lh((em * 0.74).round() * 1.65);
             let e = el()
@@ -303,6 +320,45 @@ fn block(v: V, look: &Look, names: &md::Names, b: Block) -> (f32, f32, El) {
             r.inline(&md::pretty(&t), Ctx::default(), p, look, names, None);
             (0.0, em * 0.95, r.el(body, p.ink).key(format!("pv-{line}")).w_full())
         }
+    }
+}
+
+/// One image at its own size, or narrower to fit the column. A box holds its place while it
+/// loads, and a line says so when there is no file.
+fn picture(v: V, img: &md::Img, look: &Look) -> El {
+    let p = v.p;
+    let s = v.s;
+    let note = |msg: String| {
+        row()
+            .w_full()
+            .px(14.0)
+            .py(10.0)
+            .radius(6.0)
+            .fill(p.code)
+            .child(label(msg, theme::sans(look.size * 0.8, 400.0), p.mute).wrap().grow(1.0).shrink())
+    };
+    let handle = match s.image_source(img) {
+        crate::images::Source::File(path) => s.images.file(&path).map(Ok),
+        crate::images::Source::Url(url) => match s.images.remote(&url) {
+            crate::images::Remote::Ready(i) => Some(Ok(i)),
+            crate::images::Remote::Loading => None,
+            crate::images::Remote::Failed(e) => Some(Err(format!("Could not load {url}: {e}"))),
+        },
+        crate::images::Source::Missing(src) => Some(Err(format!("No image at {src}"))),
+    };
+    let alt = if img.alt.is_empty() { "Image".to_string() } else { img.alt.clone() };
+    match handle {
+        Some(Ok(i)) if i.error().is_some() => note(format!("Could not show {}: {}", img.src, i.error().map_or("", |e| e.0.as_str()))),
+        Some(Ok(i)) => {
+            // A pending image paints when its pixels arrive. Its own width caps the picture.
+            let mut pic = el().pixels(i.pixels()).w_full().radius(6.0).clip_rounded(6.0).role("img").label(alt.clone()).help(alt);
+            if let Some([w, _]) = i.size() {
+                pic = pic.max_w(w as f32);
+            }
+            row().w_full().child(pic)
+        }
+        Some(Err(msg)) => note(msg),
+        _ => el().w_full().h(look.size * 6.0).radius(6.0).fill(p.code).role("img").label(alt),
     }
 }
 

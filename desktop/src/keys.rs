@@ -47,6 +47,10 @@ pub fn on_key(s: &mut App, ev: &KeyEvent, tx: &mut Tx) -> bool {
     let Key::Command(c) = ev.key else { return false };
     match (c, shift) {
         ('f', true) => s.open_search(tx),
+        ('b', false) => s.format(crate::format::Fmt::Bold, tx),
+        ('i', false) => s.format(crate::format::Fmt::Italic, tx),
+        ('k', false) => s.format(crate::format::Fmt::Link, tx),
+        ('i', true) => s.pick_image(tx),
         ('o', false) => s.open_palette(crate::app::PalMode::Files, tx),
         ('p', false) => s.open_palette(crate::app::PalMode::Commands, tx),
         ('e', false) => s.toggle_mode(tx),

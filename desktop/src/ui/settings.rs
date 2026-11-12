@@ -15,9 +15,13 @@ pub fn settings(v: V) -> El {
     let mut nav = col().key("set-nav").w(190.0).h_full().gap(2.0).py(18.0).px(10.0).fill(p.side).child(text("settings").font(mono(11.0, 400.0)).color(p.mute).px(10.0).pb(10.0));
     for (id, lbl) in SECS {
         let on = s.set_sec == id;
+        let mut tab = row().key(format!("nav-{lbl}"));
+        // The open section's tab takes the focus, so no text field shows a caret unasked.
+        if on {
+            tab = tab.focusable(true).autofocus();
+        }
         nav = nav.child(
-            row()
-                .key(format!("nav-{lbl}"))
+            tab
                 .h(30.0)
                 .px(10.0)
                 .center_y()
@@ -215,7 +219,7 @@ fn theme_grid(v: V, dark: bool) -> El {
                     }
                 })
                 .child(picture)
-                .child(label(name, sans(12.5, if on { 500.0 } else { 400.0 }), if on { p.ink } else { p.ink2 }).truncate().px(2.0));
+                .child(label(name, sans(12.5, if on { 500.0 } else { 400.0 }), if on { p.ink } else { p.ink2 }).truncate());
             if on {
                 card = card.box_shadow(rune::Shadow { x: 0.0, y: 0.0, blur: 0.0, spread: 1.0, color: p.acc, inset: false });
             }
@@ -365,7 +369,8 @@ fn editor(v: V) -> El {
         .child(row_(v, "width", "Line width", Some("Readable keeps lines to about 72 characters."), settings_seg(p, "width-seg", vec![width("readable", "Readable"), width("full", "Full width")])));
     type Get = fn(&crate::store::Settings) -> bool;
     type Set = fn(&mut crate::store::Settings);
-    let toggles: [(&str, &str, &str, Get, Set); 4] = [
+    let toggles: [(&str, &str, &str, Get, Set); 5] = [
+        ("toolbar", "Formatting toolbar", "Buttons for bold, links, lists and images above the note.", |s| s.toolbar, |s| s.toolbar = !s.toolbar),
         ("spell", "Spell check", "Underline misspelled words while you type.", |s| s.spellcheck, |s| s.spellcheck = !s.spellcheck),
         ("lists", "Continue lists", "Pressing Enter in a list starts the next item.", |s| s.continue_lists, |s| s.continue_lists = !s.continue_lists),
         ("dim", "Dim other paragraphs in focus mode", "Only the paragraph you are writing stays at full strength.", |s| s.dim_focus, |s| s.dim_focus = !s.dim_focus),
@@ -446,7 +451,7 @@ fn files(v: V) -> El {
 
 fn keys(v: V) -> El {
     let p = v.p;
-    let rows: [(&str, &[&str]); 10] = [
+    let rows: [(&str, &[&str]); 12] = [
         ("Quick switcher", &["Mod", "O"]),
         ("Command palette", &["Mod", "P"]),
         ("New note", &["Mod", "N"]),
@@ -457,9 +462,14 @@ fn keys(v: V) -> El {
         ("Settings", &["Mod", ","]),
         ("Bold", &["Mod", "B"]),
         ("Italic", &["Mod", "I"]),
+        ("Link", &["Mod", "K"]),
+        ("Insert an image", &["Mod", "Shift", "I"]),
     ];
     let mut c = col().key("keys").w_full();
     let mut all: Vec<(String, String)> = rows.iter().map(|(l, ks)| (l.to_string(), k(ks))).collect();
+    if !cfg!(target_os = "macos") {
+        all.push(("Quit".into(), k(&["Mod", "Q"])));
+    }
     all.push(("Follow a [[link]]".into(), mod_click()));
     for (i, (l, kb)) in all.into_iter().enumerate() {
         c = c.child(

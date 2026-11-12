@@ -99,11 +99,13 @@ class ThemeDef(val id: String, val name: String, val dark: Boolean, val colors: 
 object Themes {
     val list = listOf(
         ThemeDef("paper", "Paper", false, listOf("#f8f5ef", "#efebe3", "#2a2723", "#5b554d", "#776f64", "#b2a999", "#7a4fba", "#b0432f")),
+        ThemeDef("white", "White", false, listOf("#ffffff", "#f5f5f3", "#1f1e1c", "#474540", "#6b6863", "#aeaaa3", "#7a4fba", "#b0432f")),
         ThemeDef("solarized-light", "Solarized Light", false, listOf("#fdf6e3", "#eee8d5", "#073642", "#586e75", "#657b83", "#93a1a1", "#268bd2", "#dc322f")),
         ThemeDef("gruvbox-light", "Gruvbox Light", false, listOf("#fbf1c7", "#f2e5bc", "#3c3836", "#504945", "#7c6f64", "#a89984", "#af3a03", "#9d0006")),
         ThemeDef("catppuccin-latte", "Catppuccin Latte", false, listOf("#eff1f5", "#e6e9ef", "#4c4f69", "#5c5f77", "#6c6f85", "#9ca0b0", "#8839ef", "#d20f39")),
         ThemeDef("rose-pine-dawn", "Rosé Pine Dawn", false, listOf("#faf4ed", "#f2e9e1", "#575279", "#686388", "#797593", "#9893a5", "#907aa9", "#b4637a")),
         ThemeDef("ink", "Ink", true, listOf("#1f1d1a", "#181715", "#e9e3d8", "#bdb5a7", "#948c7f", "#5f584e", "#b597e8", "#e8907c")),
+        ThemeDef("black", "Black", true, listOf("#000000", "#0a0a0a", "#e8e6e3", "#b8b5b0", "#8c8984", "#4a4845", "#b597e8", "#e8907c")),
         ThemeDef("nord", "Nord", true, listOf("#2e3440", "#272c36", "#eceff4", "#d8dee9", "#9aa3b5", "#4c566a", "#88c0d0", "#bf616a")),
         ThemeDef("gruvbox-dark", "Gruvbox Dark", true, listOf("#282828", "#1d2021", "#ebdbb2", "#d5c4a1", "#a89984", "#665c54", "#fe8019", "#fb4934")),
         ThemeDef("catppuccin-mocha", "Catppuccin Mocha", true, listOf("#1e1e2e", "#181825", "#cdd6f4", "#bac2de", "#9399b2", "#585b70", "#cba6f7", "#f38ba8")),

@@ -69,6 +69,12 @@ object QIcons {
     const val EYE = "M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8zM6 8a2 2 0 1 0 4 0a2 2 0 1 0-4 0"
     /** Shown in preview mode: the button switches to source. */
     const val CODE = "M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"
+    const val LINK = "M6.8 9.2a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.8.8M9.2 6.8a2.8 2.8 0 0 0-4 0l-2 2a2.8 2.8 0 0 0 4 4l.8-.8"
+    const val LIST = "M6 4h8M6 8h8M6 12h8M2.6 4h.01M2.6 8h.01M2.6 12h.01"
+    const val TASK = "M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM5.3 8.2l1.9 1.9 3.6-4"
+    const val QUOTE = "M3 4v8M6.5 5h7M6.5 8h7M6.5 11h4.5"
+    /** Insert image: a frame with a hill and a sun. */
+    const val IMAGE = "M3.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V4a1.5 1.5 0 0 1 1.5-1.5zM2.3 11.2l3.4-3.4 2.8 2.8 1.8-1.8 3.4 3.4M9.6 5.8a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0"
 }
 
 @Composable

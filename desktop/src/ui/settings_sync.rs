@@ -167,12 +167,29 @@ pub fn spec(s: &App, pid: &str) -> Vec<Field> {
 }
 
 fn cfg_value(s: &App, pid: &str, key: &str) -> Option<String> {
+    if key == "prefix" {
+        return Some(s.remote_folder());
+    }
     s.settings().sync.cfg.get(pid).and_then(|c| c.get(key)).cloned()
+}
+
+/// The text field's key. The remote folder belongs to the open notes folder, so its field does too.
+fn field_key(s: &App, pid: &str, key: &str) -> String {
+    match (key, &s.vault) {
+        ("prefix", Some(v)) => format!("sync:prefix:{}", v.path.display()),
+        _ => format!("sync:{pid}:{key}"),
+    }
 }
 
 pub fn set_cfg(s: &mut App, key: &str, v: String) {
     let pid = s.settings().sync.provider.clone();
-    s.settings_mut().sync.cfg.entry(pid).or_default().insert(key.to_string(), v);
+    if key == "prefix" {
+        if let Some(path) = s.vault.as_ref().map(|v| v.path.to_string_lossy().into_owned()) {
+            s.settings_mut().sync.folders.insert(path, v);
+        }
+    } else {
+        s.settings_mut().sync.cfg.entry(pid).or_default().insert(key.to_string(), v);
+    }
     s.sync_changed();
     s.sync_status = match std::mem::replace(&mut s.sync_status, SyncStatus::Idle) {
         SyncStatus::Error { msg, missing } => SyncStatus::Error { msg, missing: missing.into_iter().filter(|m| m != key).collect() },
@@ -364,7 +381,7 @@ fn field(v: V, pid: &str, fd: &Field, bad: bool) -> El {
     let key = fd.key;
     match fd.kind {
         Kind::Text | Kind::Secret => {
-            c = c.child(text_box(v, &format!("sync:{pid}:{key}"), value, fd.ph, fd.kind == Kind::Secret, bad, f32::INFINITY, move |s, t| set_cfg(s, key, t)));
+            c = c.child(text_box(v, &field_key(s, pid, key), value, fd.ph, fd.kind == Kind::Secret, bad, f32::INFINITY, move |s, t| set_cfg(s, key, t)));
         }
         Kind::Choice => {
             let mut r = row().key("opts").w_full().flex_wrap().gap(6.0);

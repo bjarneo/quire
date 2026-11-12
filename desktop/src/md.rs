@@ -672,6 +672,8 @@ pub struct Item {
 
 #[derive(Clone, Debug)]
 pub enum Block {
+    /// A line of nothing but images.
+    Image { line: usize, images: Vec<Img> },
     Pre { line: usize, text: String },
     Heading { line: usize, level: usize, index: usize, text: String },
     Rule,
@@ -686,7 +688,143 @@ fn is_list(l: &str) -> bool {
 
 fn is_block_start(l: &str) -> bool {
     let t = l.trim_start();
-    t.starts_with("```") || heading_line(l).is_some() || t.starts_with('>') || is_list(l) || is_hr(l)
+    t.starts_with("```") || heading_line(l).is_some() || t.starts_with('>') || is_list(l) || is_hr(l) || image_line(l).is_some()
+}
+
+/// The file types the preview shows as images, and that sync carries next to the notes.
+pub const IMAGE_EXT: [&str; 8] = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
+
+/// Whether a path names an image file, by its extension.
+pub fn is_image(path: &str) -> bool {
+    path.rsplit_once('.').is_some_and(|(_, e)| IMAGE_EXT.iter().any(|x| x.eq_ignore_ascii_case(e)))
+}
+
+/// An image in a note: `![alt](src)`, or `![[name]]` as other Markdown apps write an embed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Img {
+    pub alt: String,
+    pub src: String,
+    /// Written as `![[name]]`: `src` is a file name to find anywhere in the folder.
+    pub embed: bool,
+}
+
+/// The images of a line that holds only images, with spaces between them.
+pub fn image_line(l: &str) -> Option<Vec<Img>> {
+    let mut rest = l.trim();
+    if !rest.starts_with("![") {
+        return None;
+    }
+    let mut out = Vec::new();
+    while !rest.is_empty() {
+        let (img, used) = image_at(rest)?;
+        out.push(img);
+        rest = rest[used..].trim_start();
+    }
+    Some(out)
+}
+
+/// One image at the start of `s`, and how many bytes it takes.
+pub fn image_at(s: &str) -> Option<(Img, usize)> {
+    if let Some(inner) = s.strip_prefix("![[") {
+        let end = inner.find("]]")?;
+        let name = inner[..end].split('|').next().unwrap_or("").trim();
+        if name.is_empty() || !is_image(name) {
+            return None;
+        }
+        let alt = name.rsplit('/').next().unwrap_or(name);
+        let alt = alt.rsplit_once('.').map_or(alt, |(b, _)| b).to_string();
+        return Some((Img { alt, src: name.to_string(), embed: true }, 3 + end + 2));
+    }
+    let inner = s.strip_prefix("![")?;
+    let close = inner.find("](")?;
+    let alt = &inner[..close];
+    if alt.contains(['[', ']', '\n']) {
+        return None;
+    }
+    let after = &inner[close + 2..];
+    let end = if after.starts_with('<') { after.find(">)").map(|i| i + 1)? } else { after.find(')')? };
+    let src = image_src(&after[..end]);
+    if src.is_empty() {
+        return None;
+    }
+    Some((Img { alt: alt.to_string(), src, embed: false }, 2 + close + 2 + end + 1))
+}
+
+/// The path or URL of `![alt](…)`: without `<…>`, without a `"title"`, with `%20` and the
+/// other escapes decoded for paths.
+pub fn image_src(raw: &str) -> String {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix('<').and_then(|r| r.strip_suffix('>')) {
+        return inner.to_string();
+    }
+    let t = match t.find(" \"") {
+        Some(i) => &t[..i],
+        None => t,
+    };
+    if t.contains("://") {
+        return t.to_string();
+    }
+    percent_decode(t)
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() && b[i + 1].is_ascii_hexdigit() && b[i + 2].is_ascii_hexdigit() {
+            let hexval = |c: u8| (c as char).to_digit(16).unwrap_or(0) as u8;
+            out.push(hexval(b[i + 1]) * 16 + hexval(b[i + 2]));
+            i += 3;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| s.to_string())
+}
+
+/// A path for a Markdown link: spaces and the characters that end a link become escapes.
+pub fn link_path(p: &str) -> String {
+    let mut out = String::with_capacity(p.len());
+    for c in p.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            '<' => out.push_str("%3C"),
+            '>' => out.push_str("%3E"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// `to` written relative to the folder `from_dir`, both relative to the notes folder, with
+/// `../` to go up.
+pub fn relative(from_dir: &str, to: &str) -> String {
+    let a: Vec<&str> = from_dir.split('/').filter(|s| !s.is_empty()).collect();
+    let b: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
+    let same = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    let mut parts: Vec<&str> = vec![".."; a.len() - same];
+    parts.extend(&b[same..]);
+    parts.join("/")
+}
+
+/// `rel` inside the folder `dir`, with `.` and `..` resolved. None when it leaves the notes
+/// folder.
+pub fn resolve(dir: &str, rel: &str) -> Option<String> {
+    let mut parts: Vec<&str> = if rel.starts_with('/') { Vec::new() } else { dir.split('/').filter(|s| !s.is_empty()).collect() };
+    for seg in rel.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s),
+        }
+    }
+    Some(parts.join("/"))
 }
 
 /// Splits a note into preview blocks, as the prototype's `renderPreview` does.
@@ -721,6 +859,11 @@ pub fn blocks(text: &str) -> Vec<Block> {
         }
         if is_hr(ln) {
             out.push(Block::Rule);
+            i += 1;
+            continue;
+        }
+        if let Some(images) = image_line(ln) {
+            out.push(Block::Image { line: start, images });
             i += 1;
             continue;
         }
@@ -800,5 +943,38 @@ mod tests {
         let (b, _) = fuzzy("oss", "On slow software").unwrap();
         assert!(a > b);
         assert!(fuzzy("zz", "abc").is_none());
+    }
+}
+
+#[cfg(test)]
+mod image_tests {
+    use super::*;
+
+    #[test]
+    fn image_lines_parse() {
+        let one = image_line("![A cat](attachments/My%20cat.png)").unwrap();
+        assert_eq!(one, vec![Img { alt: "A cat".into(), src: "attachments/My cat.png".into(), embed: false }]);
+        let two = image_line("  ![](a.png \"Title\")  ![[Photos/b.jpg|300]]").unwrap();
+        assert_eq!(two[0].src, "a.png");
+        assert_eq!(two[1], Img { alt: "b".into(), src: "Photos/b.jpg".into(), embed: true });
+        assert_eq!(image_line("![x](<with space.png>)").unwrap()[0].src, "with space.png");
+        assert_eq!(image_line("![x](https://example.com/a%20b.png)").unwrap()[0].src, "https://example.com/a%20b.png");
+        assert!(image_line("text ![x](a.png)").is_none());
+        assert!(image_line("![x](a.png) and text").is_none());
+        assert!(image_line("![[Note]]").is_none(), "an embed of a note is not an image");
+        assert_eq!(percent_decode("%E2%9C%93 100%"), "✓ 100%");
+        assert_eq!(percent_decode("%é"), "%é");
+    }
+
+    #[test]
+    fn image_blocks_and_paths() {
+        let b = blocks("Text\n![a](a.png)\nmore");
+        assert!(matches!(&b[..], [Block::Para { .. }, Block::Image { .. }, Block::Para { .. }]), "{b:?}");
+        assert_eq!(relative("Drafts/Old", "attachments/a.png"), "../../attachments/a.png");
+        assert_eq!(relative("", "attachments/a.png"), "attachments/a.png");
+        assert_eq!(resolve("Drafts", "../attachments/a.png").as_deref(), Some("attachments/a.png"));
+        assert_eq!(resolve("", "../a.png"), None);
+        assert_eq!(link_path("My cat (1).png"), "My%20cat%20%281%29.png");
+        assert!(is_image("x/Y.JPG") && !is_image("x.md"));
     }
 }

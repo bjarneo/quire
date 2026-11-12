@@ -16,7 +16,10 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Base64
 import javax.net.ssl.SSLException
 
-/** An object store. It gets, puts and deletes objects under the remote folder. All calls block. */
+/**
+ * An object store. It gets, puts and deletes objects under the remote folder. All calls block.
+ * The sync calls it from 8 threads at once, so an implementation must be safe for that.
+ */
 interface ObjStore {
     /** The bytes of the object, or null when it does not exist. */
     fun get(key: String): ByteArray?
@@ -35,6 +38,47 @@ internal object Http {
 
     private const val LIMIT = 256 * 1024 * 1024
 
+    /** The waits between tries scale by this. Tests make it small. */
+    @Volatile
+    var waitScale = 1.0
+
+    /** A request that got no answer, and whether another try can help. */
+    class Fail(msg: String, val again: Boolean) : Exception(msg)
+
+    /**
+     * Runs [once] up to 5 times. It tries again after 0.5, 1, 2 and 4 seconds when the service
+     * is busy (429, 500, 502, 503, 504) or the connection failed. Object stores send these now
+     * and then, and one of them must not fail a sync of hundreds of notes.
+     */
+    fun retry(once: () -> Response): Response {
+        val waits = doubleArrayOf(0.5, 1.0, 2.0, 4.0)
+        var i = 0
+        while (true) {
+            var fail: Fail? = null
+            val r = try {
+                once()
+            } catch (f: Fail) {
+                fail = f
+                null
+            }
+            val again = if (r != null) r.code in setOf(429, 500, 502, 503, 504) else fail!!.again
+            if (!again || i == waits.size) {
+                if (r != null) return r
+                throw SyncException(fail!!.message ?: "The connection broke.")
+            }
+            Thread.sleep((waits[i] * waitScale * 1000).toLong().coerceAtLeast(1))
+            i++
+        }
+    }
+
+    /** The message for a busy or failing service, the same for every provider. */
+    fun busy(code: Int): String? = when (code) {
+        429 -> "The storage service asks Quire to slow down (429). Quire tries again on the next sync."
+        in 502..504 -> "The storage service did not answer in time ($code). Quire tries again on the next sync."
+        in 500..599 -> "The storage service had an error ($code). Quire tries again on the next sync."
+        else -> null
+    }
+
     /** "host" or "host:port" from a URL, without a default port. Null when the URL has no host. */
     fun hostPort(url: String): String? {
         val scheme = url.substringBefore("://", "").lowercase()
@@ -45,51 +89,63 @@ internal object Http {
         return hp
     }
 
-    fun send(method: String, url: String, headers: List<Pair<String, String>>, body: ByteArray?): Response {
+    /** One request with tries again, as [retry] says. */
+    fun send(method: String, url: String, headers: List<Pair<String, String>>, body: ByteArray?): Response =
+        retry { once(method, url, headers, body) }
+
+    /** One request: status and body. A transport failure becomes a [Fail] with a plain message. */
+    fun once(method: String, url: String, headers: List<Pair<String, String>>, body: ByteArray?): Response {
         val where = "Could not reach ${hostPort(url) ?: "the server"}."
         val u = try {
             val uri = URI(url)
             if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrEmpty()) throw IllegalArgumentException()
             uri.toURL()
         } catch (e: Exception) {
-            throw SyncException("$where The endpoint is not a valid URL.")
+            throw Fail("$where The endpoint is not a valid URL.", false)
         }
         val c = try {
             u.openConnection() as HttpURLConnection
         } catch (e: IOException) {
-            throw SyncException("$where The connection broke.")
+            throw Fail("$where The connection broke.", true)
         }
         try {
-            c.connectTimeout = 15_000
-            c.readTimeout = 120_000
-            c.instanceFollowRedirects = false
-            c.useCaches = false
-            c.requestMethod = method
-            for ((k, v) in headers) c.setRequestProperty(k, v)
-            if (body != null) {
-                c.doOutput = true
-                c.setFixedLengthStreamingMode(body.size)
-                c.outputStream.use { it.write(body) }
+            val code = try {
+                c.connectTimeout = 15_000
+                c.readTimeout = 120_000
+                c.instanceFollowRedirects = false
+                c.useCaches = false
+                c.requestMethod = method
+                for ((k, v) in headers) c.setRequestProperty(k, v)
+                if (body != null) {
+                    c.doOutput = true
+                    c.setFixedLengthStreamingMode(body.size)
+                    c.outputStream.use { it.write(body) }
+                }
+                c.responseCode
+            } catch (e: UnknownHostException) {
+                throw Fail("$where The host name does not resolve. Check the endpoint and the region.", false)
+            } catch (e: SSLException) {
+                throw Fail("$where The TLS check failed: ${e.message ?: e.javaClass.simpleName}.", true)
+            } catch (e: ConnectException) {
+                throw Fail("$where The connection was refused or timed out.", true)
+            } catch (e: NoRouteToHostException) {
+                throw Fail("$where The connection was refused or timed out.", true)
+            } catch (e: SocketTimeoutException) {
+                throw Fail("$where The connection was refused or timed out.", true)
+            } catch (e: IOException) {
+                throw Fail("$where The connection broke.", true)
+            } catch (e: SecurityException) {
+                throw Fail("$where The connection broke.", false)
             }
-            val code = c.responseCode
-            val stream = if (code >= 400) c.errorStream else c.inputStream
-            return Response(code, stream?.use { read(it) } ?: ByteArray(0))
-        } catch (e: SyncException) {
-            throw e
-        } catch (e: UnknownHostException) {
-            throw SyncException("$where The host name does not resolve. Check the endpoint and the region.")
-        } catch (e: SSLException) {
-            throw SyncException("$where The TLS check failed: ${e.message ?: e.javaClass.simpleName}.")
-        } catch (e: ConnectException) {
-            throw SyncException("$where The connection was refused or timed out.")
-        } catch (e: NoRouteToHostException) {
-            throw SyncException("$where The connection was refused or timed out.")
-        } catch (e: SocketTimeoutException) {
-            throw SyncException("$where The connection was refused or timed out.")
-        } catch (e: IOException) {
-            throw SyncException("$where The connection broke.")
-        } catch (e: SecurityException) {
-            throw SyncException("$where The connection broke.")
+            val bytes = try {
+                val stream = if (code >= 400) c.errorStream else c.inputStream
+                stream?.use { read(it) } ?: ByteArray(0)
+            } catch (e: SyncException) {
+                throw e
+            } catch (e: IOException) {
+                throw Fail("The connection broke: ${e.message ?: e.javaClass.simpleName}", true)
+            }
+            return Response(code, bytes)
         } finally {
             c.disconnect()
         }
@@ -117,6 +173,7 @@ internal object Http {
             return text.substring(i + open.length).substringBefore("<$t>").substringBefore("</$t>")
         }
         val name = tag("Code") ?: ""
+        busy(code)?.let { return it }
         return when {
             name == "NoSuchBucket" || name == "ContainerNotFound" -> "The bucket does not exist. Check the bucket name and the region."
             code == 403 || code == 401 || name == "SignatureDoesNotMatch" || name == "InvalidAccessKeyId" || name == "AuthenticationFailed" ->
@@ -156,12 +213,15 @@ class S3(
         val host = if (pathStyle) hostPort else "$bucket.$hostPort"
         val uri = if (pathStyle) "/${Sign.uriEncode(bucket, false)}/$obj" else "/$obj"
         val payload = Sign.sha256Hex(body ?: ByteArray(0))
-        val (amzDate, date) = Sign.amzDates(Sign.nowSecs())
-        val signed = listOf("host" to host, "x-amz-content-sha256" to payload, "x-amz-date" to amzDate)
-        val auth = Sign.SigV4(access, secret, region, "s3").authorization(method, uri, "", signed, payload, amzDate, date)
-        val headers = mutableListOf("x-amz-content-sha256" to payload, "x-amz-date" to amzDate, "Authorization" to auth)
-        if (body != null) headers.add("Content-Type" to "application/octet-stream")
-        return Http.send(method, "$scheme://$host$uri", headers, body)
+        // Each try signs again, with the time of that try.
+        return Http.retry {
+            val (amzDate, date) = Sign.amzDates(Sign.nowSecs())
+            val signed = listOf("host" to host, "x-amz-content-sha256" to payload, "x-amz-date" to amzDate)
+            val auth = Sign.SigV4(access, secret, region, "s3").authorization(method, uri, "", signed, payload, amzDate, date)
+            val headers = mutableListOf("x-amz-content-sha256" to payload, "x-amz-date" to amzDate, "Authorization" to auth)
+            if (body != null) headers.add("Content-Type" to "application/octet-stream")
+            Http.once(method, "$scheme://$host$uri", headers, body)
+        }
     }
 
     override fun get(key: String): ByteArray? {
@@ -226,16 +286,18 @@ class Azure(
         val path = "${basePath.trimEnd('/')}/$cont/$blob"
         var url = "$base/$cont/$blob"
         if (sas != null) url += "?$sas"
-        val xMs = mutableListOf("x-ms-date" to Sign.rfc1123(Sign.nowSecs()), "x-ms-version" to "2021-08-06")
-        if (method == "PUT") xMs.add("x-ms-blob-type" to "BlockBlob")
-        val headers = ArrayList(xMs)
-        val type = if (body != null) "application/octet-stream" else ""
-        if (body != null) headers.add("Content-Type" to type)
-        this.key?.let { k ->
-            val len = if (body == null || body.isEmpty()) "" else body.size.toString()
-            headers.add("Authorization" to Sign.azureSharedKey(k, account, method, len, type, xMs, "/$account$path"))
+        return Http.retry {
+            val xMs = mutableListOf("x-ms-date" to Sign.rfc1123(Sign.nowSecs()), "x-ms-version" to "2021-08-06")
+            if (method == "PUT") xMs.add("x-ms-blob-type" to "BlockBlob")
+            val headers = ArrayList(xMs)
+            val type = if (body != null) "application/octet-stream" else ""
+            if (body != null) headers.add("Content-Type" to type)
+            this.key?.let { k ->
+                val len = if (body == null || body.isEmpty()) "" else body.size.toString()
+                headers.add("Authorization" to Sign.azureSharedKey(k, account, method, len, type, xMs, "/$account$path"))
+            }
+            Http.once(method, url, headers, body)
         }
-        return Http.send(method, url, headers, body)
     }
 
     override fun get(key: String): ByteArray? {
@@ -290,6 +352,7 @@ class Gcs(bucket: String, json: String, private val prefix: String) : ObjStore {
 
     override val place: String get() = bucket
 
+    @Synchronized
     private fun token(): String {
         token?.let { if (System.nanoTime() < tokenUntil) return it }
         val b64 = Base64.getUrlEncoder().withoutPadding()
@@ -329,6 +392,7 @@ class Gcs(bucket: String, json: String, private val prefix: String) : ObjStore {
     override fun get(key: String): ByteArray? {
         val t = token()
         val r = Http.send("GET", objectUrl(key) + "?alt=media", listOf("Authorization" to "Bearer $t"), null)
+        Http.busy(r.code)?.let { throw SyncException(it) }
         return when {
             r.code == 200 -> r.body
             r.code == 404 && !r.text.contains("bucket does not exist") -> null
@@ -344,12 +408,12 @@ class Gcs(bucket: String, json: String, private val prefix: String) : ObjStore {
         val url = "https://storage.googleapis.com/upload/storage/v1/b/${Sign.uriEncode(bucket, false)}/o?uploadType=media&name=" +
             Sign.uriEncode(prefix + key, false)
         val r = Http.send("POST", url, listOf("Authorization" to "Bearer $t", "Content-Type" to "application/octet-stream"), body)
-        if (r.code !in 200..299) throw SyncException("Google Cloud refused the upload (${r.code}).")
+        if (r.code !in 200..299) throw SyncException(Http.busy(r.code) ?: "Google Cloud refused the upload (${r.code}).")
     }
 
     override fun delete(key: String) {
         val t = token()
         val r = Http.send("DELETE", objectUrl(key), listOf("Authorization" to "Bearer $t"), null)
-        if (r.code !in 200..299 && r.code != 404) throw SyncException("Google Cloud refused the delete (${r.code}).")
+        if (r.code !in 200..299 && r.code != 404) throw SyncException(Http.busy(r.code) ?: "Google Cloud refused the delete (${r.code}).")
     }
 }

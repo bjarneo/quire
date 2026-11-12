@@ -56,6 +56,9 @@ pub fn commands(s: &App, dark: bool) -> Vec<Cmd> {
     if s.sync_ready() {
         v.push(cmd("Sync now", &[], |s, _| s.sync_now()));
     }
+    if s.active.is_some() {
+        v.push(cmd("Insert image…", &["Mod", "Shift", "I"], |s, tx| s.pick_image(tx)));
+    }
     v.push(cmd("Open settings", &["Mod", ","], |s, _| s.open_settings()));
     if !cfg!(target_os = "macos") {
         v.push(cmd("Quit", &["Mod", "Q"], |s, tx| s.quit(tx)));

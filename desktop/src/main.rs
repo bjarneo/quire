@@ -7,6 +7,8 @@ mod app;
 mod cli;
 mod commands;
 mod folders;
+mod format;
+mod images;
 mod keys;
 mod mcp;
 mod md;
@@ -158,6 +160,40 @@ mod theme_choice_tests {
         assert!(!s.palette(true).dark, "Light mode ignores the system");
         s.persist.settings.accent = "#1f8a80".into();
         assert_eq!(format!("{:?}", s.palette(false).button), format!("{:?}", crate::theme::hex("#1f8a80")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod toolbar_tests {
+    use rune::{Env, Runtime};
+
+    #[test]
+    fn toolbar_actions_edit_the_selection() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-toolbar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let mut rt = Runtime::new(crate::app::init(), crate::ui::view, (1280.0, 800.0), Env { system_dark: false, scale: 1.0 });
+        rt.frame(1.0 / 60.0);
+        let mut out = String::new();
+        rt.update(|s, tx| {
+            s.mode = crate::app::Mode::Source;
+            let text = "Intro — with a dash\nhello world".to_string();
+            let a = s.active.clone().unwrap();
+            s.set_text(&a, text.clone());
+            let start = text.find("hello").unwrap();
+            s.cur_edit().set_selection(start, text.len());
+            s.format(crate::format::Fmt::Bold, tx);
+            s.format(crate::format::Fmt::Bullet, tx);
+            out = s.active_text().to_string();
+        });
+        assert_eq!(out, "Intro — with a dash\n- **hello world**");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

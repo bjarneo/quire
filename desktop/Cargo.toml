@@ -1,6 +1,6 @@
 [package]
 name = "quire"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 license = "MIT"
 description = "A plain editor for folders of Markdown files."
@@ -30,7 +30,8 @@ embed-resource = "3"
 # section, so the app repeats it here at the same Rune revision.
 [patch.crates-io]
 wgpu-hal = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
-winit = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
+# Rune's winit, plus file drops from other apps on Wayland (vendor/winit/src/platform_impl/linux/wayland/dnd.rs).
+winit = { path = "vendor/winit" }
 parley_engine = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
 accesskit_windows = { git = "https://github.com/anomalyco/rune", rev = "bf3f9d4a0459af5071cd352df816b610dda7f3a6" }
 

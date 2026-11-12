@@ -8,14 +8,14 @@ use super::*;
 struct Mem(Arc<Mutex<BTreeMap<String, Vec<u8>>>>);
 
 impl Store for Mem {
-    fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>, String> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
         Ok(self.0.lock().unwrap().get(key).cloned())
     }
-    fn put(&mut self, key: &str, body: &[u8]) -> Result<(), String> {
+    fn put(&self, key: &str, body: &[u8]) -> Result<(), String> {
         self.0.lock().unwrap().insert(key.to_string(), body.to_vec());
         Ok(())
     }
-    fn delete(&mut self, key: &str) -> Result<(), String> {
+    fn delete(&self, key: &str) -> Result<(), String> {
         self.0.lock().unwrap().remove(key);
         Ok(())
     }
@@ -51,8 +51,13 @@ impl Device {
         for pl in &out.pulls {
             self.write(&pl.path, &pl.text);
         }
-        for (p, _) in &out.removes {
+        for (p, _) in out.removes.iter().chain(&out.image_removes) {
             let _ = std::fs::remove_file(self.root.join(p));
+        }
+        for (p, bytes, _, _) in &out.image_pulls {
+            let f = self.root.join(p);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(f, bytes).unwrap();
         }
         for f in &out.mkdirs {
             std::fs::create_dir_all(self.root.join(f)).unwrap();
@@ -159,6 +164,13 @@ type Objects = Arc<Mutex<BTreeMap<String, Vec<u8>>>>;
 /// A small S3 server for tests. It checks the signature of each request the way S3 does, from
 /// the path and headers it received, then keeps the objects of one bucket in memory.
 fn s3_server(secret: &'static str) -> (String, Objects) {
+    s3_server_failing(secret, 0)
+}
+
+/// `s3_server` that answers 504 to every `fail_every`-th request (0 never, 1 always), as a
+/// gateway in front of a busy store does.
+fn s3_server_failing(secret: &'static str, fail_every: usize) -> (String, Objects) {
+    let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     use std::io::{BufRead, BufReader, Read, Write};
     let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", l.local_addr().unwrap());
@@ -167,6 +179,7 @@ fn s3_server(secret: &'static str) -> (String, Objects) {
     std::thread::spawn(move || {
         for stream in l.incoming().flatten() {
             let objects = o2.clone();
+            let count = count.clone();
             std::thread::spawn(move || {
                 let mut w = stream.try_clone().unwrap();
                 let mut r = BufReader::new(stream);
@@ -198,7 +211,10 @@ fn s3_server(secret: &'static str) -> (String, Objects) {
                     let signed = [("host", h("host")), ("x-amz-content-sha256", h("x-amz-content-sha256")), ("x-amz-date", date.clone())];
                     let s = sign::SigV4 { access: "test", secret, region: &region, service: "s3" };
                     let want = s.authorization(&method, &path, "", &signed, &h("x-amz-content-sha256"), &date, &date[..8.min(date.len())]);
-                    let (code, out): (u16, Vec<u8>) = if auth != want || h("x-amz-content-sha256") != sign::sha256_hex(&body) {
+                    let n = count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                    let (code, out): (u16, Vec<u8>) = if fail_every > 0 && n % fail_every == 0 {
+                        (504, b"<html><body><h1>504 Gateway Time-out</h1></body></html>".to_vec())
+                    } else if auth != want || h("x-amz-content-sha256") != sign::sha256_hex(&body) {
                         (403, b"<Error><Code>SignatureDoesNotMatch</Code></Error>".to_vec())
                     } else if !path.starts_with("/notes/") {
                         (404, b"<Error><Code>NoSuchBucket</Code></Error>".to_vec())
@@ -248,15 +264,17 @@ fn s3_requests_are_signed_and_stored() {
         let (a, b) = (Device::new(&tag, "laptop"), Device::new(&tag, "phone"));
         a.write("Notater/Blåbær og fløte.md", "# Blåbær");
         a.write("Ideas (draft) #2.md", "# Ideas");
-        let mut store = open_store(&r).unwrap();
-        let first = run_with(store.as_mut(), &r, &a.root, "laptop", &a.base).unwrap();
+        let store = open_store(&r).unwrap();
+        let first = run_with(store.as_ref(), &r, &a.root, "laptop", &a.base).unwrap();
         assert_eq!(first.uploaded, 2);
         first.save_base().unwrap();
-        let out = run_with(store.as_mut(), &r, &b.root, "phone", &b.base).unwrap();
+        let out = run_with(store.as_ref(), &r, &b.root, "phone", &b.base).unwrap();
         assert_eq!(out.pulls.len(), 2);
         assert!(test(&r, 2, true).unwrap().starts_with("Connected to notes. It holds 2 notes"), "{:?}", test(&r, 2, true));
+        let first = test(&r, 5, false).unwrap();
+        assert!(first.contains("holds 2 notes, and this folder has 5 notes. The first sync brings them together."), "{first}");
         std::fs::remove_file(a.root.join("Ideas (draft) #2.md")).unwrap();
-        assert_eq!(run_with(store.as_mut(), &r, &a.root, "laptop", &a.base).unwrap().deleted_remote, 1);
+        assert_eq!(run_with(store.as_ref(), &r, &a.root, "laptop", &a.base).unwrap().deleted_remote, 1);
     }
     let keys: Vec<String> = objects.lock().unwrap().keys().cloned().collect();
     assert!(keys.contains(&"/notes/quire/Field%20Notes/Notater/Bl%C3%A5b%C3%A6r%20og%20fl%C3%B8te.md".to_string()), "{keys:?}");
@@ -303,11 +321,13 @@ fn two_apps_sync_through_s3() {
         rt.poll = Some(|s: &mut crate::app::App, t, tx| s.poll(t, tx));
         let remote = custom(&url, "notes", "testsecret", false);
         rt.update(move |s, tx| {
+            let key = root.to_string_lossy().into_owned();
             s.open_vault(root, tx);
             let sy = &mut s.persist.settings.sync;
             sy.provider = "custom".into();
             sy.cfg.insert("custom".into(), remote.cfg.clone());
-            sy.cfg.get_mut("custom").unwrap().insert("prefix".into(), "quire/apps/".into());
+            // Two notes folders with other names share one remote folder only when told to.
+            sy.folders.insert(key, "quire/apps/".into());
             sy.when = "manual".into();
             sy.connected = true;
         });
@@ -377,6 +397,55 @@ fn two_apps_sync_through_s3() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Images sync as files next to the notes: they go up and come down byte for byte, their
+/// edits and deletes carry over, and a change on both sides keeps both images.
+#[test]
+fn images_sync_with_the_notes() {
+    for encrypt in [false, true] {
+        let mut bucket = Mem::default();
+        let r = remote(encrypt);
+        let tag = format!("img-{encrypt}");
+        let (laptop, phone) = (Device::new(&tag, "laptop"), Device::new(&tag, "phone"));
+        let png: Vec<u8> = (0..=255u8).cycle().take(5000).collect();
+        std::fs::create_dir_all(laptop.root.join("attachments")).unwrap();
+        std::fs::write(laptop.root.join("attachments/cat.png"), &png).unwrap();
+        std::fs::write(laptop.root.join("attachments/notes.txt"), "not synced").unwrap();
+        laptop.write("Pics.md", "![cat](attachments/cat.png)");
+        assert_eq!(laptop.sync(&mut bucket, &r).uploaded, 2, "the note and the image, not the text file");
+        let out = phone.sync(&mut bucket, &r);
+        assert_eq!(out.image_pulls.len(), 1);
+        assert_eq!(std::fs::read(phone.root.join("attachments/cat.png")).unwrap(), png);
+        // A quiet sync reads no image again and changes nothing.
+        let quiet = laptop.sync(&mut bucket, &r);
+        assert_eq!((quiet.uploaded, quiet.image_pulls.len()), (0, 0));
+        // An edit on the phone reaches the laptop.
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(phone.root.join("attachments/cat.png"), b"new pixels").unwrap();
+        phone.sync(&mut bucket, &r);
+        laptop.sync(&mut bucket, &r);
+        assert_eq!(std::fs::read(laptop.root.join("attachments/cat.png")).unwrap(), b"new pixels");
+        // Both change it: each keeps its own, and the other's comes in beside it.
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(laptop.root.join("attachments/cat.png"), b"laptop pixels").unwrap();
+        std::fs::write(phone.root.join("attachments/cat.png"), b"phone pixels").unwrap();
+        laptop.sync(&mut bucket, &r);
+        let out = phone.sync(&mut bucket, &r);
+        assert_eq!(out.conflicts, vec!["attachments/cat (conflict laptop).png".to_string()]);
+        assert_eq!(std::fs::read(phone.root.join("attachments/cat (conflict laptop).png")).unwrap(), b"laptop pixels");
+        // The laptop gets the copy too. Then a delete on the phone removes it on the laptop.
+        laptop.sync(&mut bucket, &r);
+        assert_eq!(std::fs::read(laptop.root.join("attachments/cat (conflict laptop).png")).unwrap(), b"laptop pixels");
+        std::fs::remove_file(phone.root.join("attachments/cat (conflict laptop).png")).unwrap();
+        assert_eq!(phone.sync(&mut bucket, &r).deleted_remote, 1);
+        assert_eq!(laptop.sync(&mut bucket, &r).image_removes.len(), 1);
+        assert!(!laptop.root.join("attachments/cat (conflict laptop).png").exists());
+        if encrypt {
+            let b = bucket.0.lock().unwrap();
+            assert!(b.keys().all(|k| !k.contains("cat")), "image names are hidden: {:?}", b.keys().collect::<Vec<_>>());
+        }
+    }
+}
+
 /// The engine leaves the base record to the caller, so a note that never reached the disk is
 /// not taken as in step: the next sync downloads it again instead of uploading the old text.
 #[test]
@@ -396,4 +465,104 @@ fn an_unsaved_base_loses_no_remote_edit() {
     let again = laptop.sync(&mut bucket, &r);
     assert_eq!(again.uploaded, 0, "the old text does not go up");
     assert_eq!(laptop.read("A.md").as_deref(), Some("two"));
+}
+
+/// A read-only check against the store in a real settings file, with timings:
+/// `QUIRE_LIVE_STATE=~/.config/quire/state.json cargo test live_store_check -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn live_store_check() {
+    let Ok(path) = std::env::var("QUIRE_LIVE_STATE") else { return };
+    let state: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let sy = &state["settings"]["sync"];
+    let provider = sy["provider"].as_str().unwrap_or("none").to_string();
+    let cfg: BTreeMap<String, String> = sy["cfg"][&provider].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect();
+    let prefix = clean_prefix(cfg.get("prefix").map_or("quire/notes/", |s| s.as_str()));
+    let r = Remote { provider, cfg, prefix, encrypt: sy["encrypt"].as_bool().unwrap_or(false), pass: sy["pass"].as_str().unwrap_or("").to_string() };
+    let store = open_store(&r).unwrap();
+    for key in [".quire/format.json", ".quire/manifest.json", ".quire/manifest.json", "missing-object.md"] {
+        let t = std::time::Instant::now();
+        let res = store.get(key);
+        println!("GET {key}: {} in {:.2} s", match &res { Ok(Some(b)) => format!("{} bytes", b.len()), Ok(None) => "not found".into(), Err(e) => format!("error: {e}") }, t.elapsed().as_secs_f64());
+    }
+    let t = std::time::Instant::now();
+    let res = store.put(".quire/probe.txt", b"probe");
+    println!("PUT probe: {:?} in {:.2} s", res, t.elapsed().as_secs_f64());
+    let t = std::time::Instant::now();
+    println!("DELETE probe: {:?} in {:.2} s", store.delete(".quire/probe.txt"), t.elapsed().as_secs_f64());
+}
+
+/// Prints a summary of the remote manifest in a real settings file: counts, devices and
+/// conflict copies. `QUIRE_LIVE_STATE=… cargo test live_manifest_summary -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn live_manifest_summary() {
+    let Ok(path) = std::env::var("QUIRE_LIVE_STATE") else { return };
+    let state: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let sy = &state["settings"]["sync"];
+    let provider = sy["provider"].as_str().unwrap_or("none").to_string();
+    let cfg: BTreeMap<String, String> = sy["cfg"][&provider].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect();
+    let prefix = clean_prefix(cfg.get("prefix").map_or("quire/notes/", |s| s.as_str()));
+    let r = Remote { provider, cfg, prefix, encrypt: sy["encrypt"].as_bool().unwrap_or(false), pass: sy["pass"].as_str().unwrap_or("").to_string() };
+    let store = open_store(&r).unwrap();
+    let keys = open_format(store.as_ref(), &r, false).unwrap();
+    let m = read_manifest(store.as_ref(), &keys).unwrap();
+    let mut devices: BTreeMap<String, usize> = BTreeMap::new();
+    for e in m.files.values() {
+        *devices.entry(e.device.clone()).or_default() += 1;
+    }
+    let conflicts = m.files.keys().filter(|p| p.contains("(conflict")).count();
+    let deepest = m.files.keys().map(|p| p.matches("(conflict").count()).max().unwrap_or(0);
+    let top: BTreeMap<String, usize> = m.files.keys().fold(BTreeMap::new(), |mut acc, p| {
+        *acc.entry(p.split('/').next().unwrap_or("").chars().take(18).collect::<String>()).or_default() += 1;
+        acc
+    });
+    println!("entries {} | folders {} | conflict copies {conflicts} | most nested conflict {deepest}", m.files.len(), m.folders.len());
+    println!("by device {devices:?}");
+    println!("by first path part {:?}", top.iter().filter(|(_, n)| **n > 2).collect::<Vec<_>>());
+}
+
+/// Reads every object in the remote manifest once, as a first sync does, and counts the
+/// answers. Read-only. `QUIRE_LIVE_STATE=… cargo test live_burst -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn live_burst() {
+    let Ok(path) = std::env::var("QUIRE_LIVE_STATE") else { return };
+    let state: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let sy = &state["settings"]["sync"];
+    let provider = sy["provider"].as_str().unwrap_or("none").to_string();
+    let cfg: BTreeMap<String, String> = sy["cfg"][&provider].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string())).collect();
+    let prefix = clean_prefix(cfg.get("prefix").map_or("quire/notes/", |s| s.as_str()));
+    let r = Remote { provider, cfg, prefix, encrypt: sy["encrypt"].as_bool().unwrap_or(false), pass: sy["pass"].as_str().unwrap_or("").to_string() };
+    let store = open_store(&r).unwrap();
+    let keys = open_format(store.as_ref(), &r, false).unwrap();
+    let m = read_manifest(store.as_ref(), &keys).unwrap();
+    let t = std::time::Instant::now();
+    let entries: Vec<&Entry> = m.files.values().collect();
+    let got = parallel(&entries, |e| store.get(&e.object));
+    match got {
+        Ok(v) => println!("{} objects in {:.1} s, {WORKERS} at a time | ok {} | missing {}", v.len(), t.elapsed().as_secs_f64(), v.iter().filter(|b| b.is_some()).count(), v.iter().filter(|b| b.is_none()).count()),
+        Err(e) => println!("failed after {:.1} s: {e}", t.elapsed().as_secs_f64()),
+    }
+}
+
+/// A gateway that drops one request in three still gives a full sync, and one that drops
+/// them all gives a message without its HTML page.
+#[test]
+fn a_busy_gateway_is_retried() {
+    let (url, objects) = s3_server_failing("testsecret", 3);
+    let r = custom(&url, "notes", "testsecret", false);
+    let (a, b) = (Device::new("flaky", "laptop"), Device::new("flaky", "phone"));
+    for i in 0..40 {
+        a.write(&format!("Note {i}.md"), &format!("# {i}"));
+    }
+    let store = open_store(&r).unwrap();
+    let out = run_with(store.as_ref(), &r, &a.root, "laptop", &a.base).unwrap();
+    assert_eq!(out.uploaded, 40);
+    let out = run_with(store.as_ref(), &r, &b.root, "phone", &b.base).unwrap();
+    assert_eq!(out.pulls.len(), 40);
+    assert!(objects.lock().unwrap().len() >= 42);
+    let (url, _) = s3_server_failing("testsecret", 1);
+    let err = test(&custom(&url, "notes", "testsecret", false), 0, false).unwrap_err();
+    assert_eq!(err, "The storage service did not answer in time (504). Quire tries again on the next sync.");
 }

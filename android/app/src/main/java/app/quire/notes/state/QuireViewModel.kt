@@ -1,7 +1,9 @@
 package app.quire.notes.state
 
 import android.app.Application
+import android.content.ClipboardManager
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -15,15 +17,23 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.quire.notes.core.Fmt
+import app.quire.notes.core.Format
+import app.quire.notes.core.ImageSource
+import app.quire.notes.core.Images
+import app.quire.notes.core.Img
 import app.quire.notes.core.Md
 import app.quire.notes.core.Sample
 import app.quire.notes.core.Sync
 import app.quire.notes.core.Themes
+import app.quire.notes.core.sync.LocalImage
 import app.quire.notes.core.sync.Outcome
+import app.quire.notes.core.sync.Sign
 import app.quire.notes.core.sync.Remote
 import app.quire.notes.core.sync.SyncEngine
 import app.quire.notes.core.sync.SyncException
 import app.quire.notes.data.Loaded
+import app.quire.notes.data.Stamp
 import app.quire.notes.data.LocalFs
 import app.quire.notes.data.SafFs
 import app.quire.notes.data.SecretStore
@@ -43,6 +53,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -177,6 +189,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     private var syncManual = false
 
     init {
+        // The settings load without the old shared remote folder. Saving them once removes it from storage too.
+        store.saveSettings(settings)
         viewModelScope.launch {
             val stored = withContext(io) { secrets.load() }
             if (stored.isNotEmpty()) settings = mergeSecrets(settings, stored)
@@ -252,6 +266,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             vault = ref.copy(path = f.displayPath, count = loaded.files.size)
             putVault(vault!!)
             setStructure(loaded.files, loaded.folders)
+            images = loaded.images
             val ses = session ?: store.loadSession(ref.id)
             tabs = ses.tabs.filter { it in files }
             active = ses.active?.takeIf { it in files } ?: tabs.firstOrNull()
@@ -397,6 +412,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             if (vault?.id != v.id) return@launch
+            if (loaded.images != images) images = loaded.images
             val merged = LinkedHashMap(loaded.files)
             for (p in dirty) files[p]?.let { merged[p] = it }
             if (merged == files && loaded.folders == folders) return@launch
@@ -779,7 +795,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openLink(name: String) {
         val t = name.split('|')[0].trim()
-        if (t.isEmpty()) return
+        // An image file is no note, so a link to it never makes one.
+        if (t.isEmpty() || Md.isImage(t)) return
         val p = Md.resolve(names, t)
         if (p != null) openFile(p) else newNote(t)
     }
@@ -876,12 +893,35 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         setDoc(p, nv.text)
     }
 
-    fun wrapSelection(mk: String) {
+    fun wrapSelection(mk: String) = format(if (mk == "**") "bold" else "italic")
+
+    /** The actions of the Markdown toolbar, in its order. */
+    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image")
+
+    /** Runs one action of the Markdown toolbar on the selection of the editor. */
+    fun format(action: String) {
+        if (action == "image") {
+            requestImagePick()
+            return
+        }
+        if (active == null) return
+        val f = when (action) {
+            "bold" -> Fmt.BOLD
+            "italic" -> Fmt.ITALIC
+            "strike" -> Fmt.STRIKE
+            "code" -> Fmt.CODE
+            "heading" -> Fmt.HEADING
+            "link" -> Fmt.LINK
+            "noteLink" -> Fmt.WIKI
+            "bullet" -> Fmt.BULLET
+            "number" -> Fmt.NUMBER
+            "task" -> Fmt.TASK
+            "quote" -> Fmt.QUOTE
+            else -> return
+        }
         val v = editor
-        val a = v.selection.min
-        val b = v.selection.max
-        val sel = v.text.substring(a, b)
-        applyEdit(TextFieldValue(v.text.substring(0, a) + mk + sel + mk + v.text.substring(b), TextRange(a + mk.length, a + mk.length + sel.length)))
+        val ed = Format.apply(v.text, v.selection.start, v.selection.end, f)
+        applyEdit(TextFieldValue(ed.applyTo(v.text), TextRange(ed.selStart, ed.selEnd)))
     }
 
     fun insertText(s: String) {
@@ -1049,7 +1089,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setSync(f: (SyncSettings) -> SyncSettings) = updateSettings { it.copy(sync = f(it.sync)) }
 
-    fun syncCfg(): Map<String, String> = settings.sync.cfg[settings.sync.provider] ?: emptyMap()
+    /** The form values of the picked provider. The remote folder comes from the open notes folder. */
+    fun syncCfg(): Map<String, String> = (settings.sync.cfg[settings.sync.provider] ?: emptyMap()) + ("prefix" to remoteFolder())
 
     fun selectProvider(id: String) {
         if (id == settings.sync.provider) return
@@ -1059,9 +1100,15 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setCfg(key: String, v: String) {
         setSync { sy ->
-            val pid = sy.provider
-            val m = (sy.cfg[pid] ?: emptyMap()) + (key to v)
-            sy.copy(cfg = sy.cfg + (pid to m), connected = false)
+            if (key == "prefix") {
+                // The remote folder belongs to the open notes folder.
+                val id = vault?.id ?: return@setSync sy.copy(connected = false)
+                sy.copy(folders = sy.folders + (id to v), connected = false)
+            } else {
+                val pid = sy.provider
+                val m = (sy.cfg[pid] ?: emptyMap()) + (key to v)
+                sy.copy(cfg = sy.cfg + (pid to m), connected = false)
+            }
         }
         val st = syncStatus
         syncStatus = if (st.state == "error") st.copy(missing = st.missing - key) else SyncStatus()
@@ -1071,14 +1118,186 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleEncrypt() = setSync { it.copy(encrypt = !it.encrypt, connected = false) }
     fun setPass(v: String) = setSync { it.copy(pass = v, connected = false) }
 
+    // ---- Images ----------------------------------------------------------------------------
+
+    /** The image files in the open notes folder, with their stamps. */
+    var images by mutableStateOf<Map<String, Stamp>>(emptyMap()); private set
+
+    /** True when the photo picker must open. The screen opens it and sets this back. */
+    var pickImage by mutableStateOf(false)
+
+    /** Opens the photo picker for the active note. */
+    fun requestImagePick() {
+        if (active == null) {
+            flash("Open a note first, then add the image to it.")
+            return
+        }
+        pickImage = true
+    }
+
+    /** Where the pixels of an image in the active note come from. */
+    fun imageSource(img: Img): ImageSource = Images.source(img, active?.let { Md.dir(it) } ?: "", images.keys)
+
+    /** A key for the image cache. It changes when the file changes. */
+    fun imageKey(src: ImageSource): String = when (src) {
+        is ImageSource.Vault -> "vault:${vault?.id}:${src.path}:${images[src.path]?.time}:${images[src.path]?.size}"
+        is ImageSource.Path -> "path:${src.path}:${File(src.path).lastModified()}"
+        is ImageSource.Url -> "url:${src.url}"
+        is ImageSource.Missing -> "missing:${src.src}"
+    }
+
+    /** The bytes of an image. Call it off the main thread. Web images download, up to 50 MB. */
+    fun imageBytes(src: ImageSource): ByteArray = when (src) {
+        is ImageSource.Vault -> (fs ?: throw IOException("No folder is open.")).readBytes(src.path)
+        is ImageSource.Path -> File(src.path).also { if (it.length() > Images.MAX_BYTES) throw IOException("The image is larger than 50 MB.") }.readBytes()
+        is ImageSource.Url -> download(src.url)
+        is ImageSource.Missing -> throw FileNotFoundException("No image at ${src.src}")
+    }
+
+    private fun download(url: String): ByteArray {
+        val c = java.net.URI(url).toURL().openConnection() as java.net.HttpURLConnection
+        try {
+            c.connectTimeout = 10_000
+            c.readTimeout = 30_000
+            val code = c.responseCode
+            if (code !in 200..299) throw IOException("The server answered $code.")
+            val out = java.io.ByteArrayOutputStream()
+            c.inputStream.use { input ->
+                val buf = ByteArray(16 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    if (out.size() > Images.MAX_BYTES) throw IOException("The image is larger than 50 MB.")
+                }
+            }
+            return out.toByteArray()
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    /**
+     * Copies picked, pasted or dropped images into attachments/ in the notes folder, then links
+     * them at the caret of the active note, each on a line of its own.
+     */
+    fun insertImages(uris: List<Uri>) {
+        val f = fs ?: return
+        val note = active
+        if (note == null) {
+            flash("Open a note first, then add the image to it.")
+            return
+        }
+        if (uris.isEmpty()) return
+        val known = images.keys.toMutableSet()
+        viewModelScope.launch {
+            var message: String? = null
+            val added = LinkedHashMap<String, Stamp>()
+            withContext(io) {
+                for (u in uris) {
+                    var display: String? = null
+                    var size = -1L
+                    try {
+                        ctx.contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                            if (c.moveToFirst()) {
+                                display = c.getString(0)
+                                if (!c.isNull(1)) size = c.getLong(1)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Some sources have no name or size. The type and the bytes still tell.
+                    }
+                    val stamp = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss", Locale.ROOT))
+                    val name = Images.nameFor(display, ctx.contentResolver.getType(u), stamp)
+                    if (name == null) {
+                        message = "Only images can go into a note: PNG, JPEG, GIF, WebP, BMP, SVG or AVIF."
+                        continue
+                    }
+                    if (size > Images.MAX_BYTES) {
+                        message = "$name is larger than 50 MB, so Quire did not add it."
+                        continue
+                    }
+                    try {
+                        val bytes = ctx.contentResolver.openInputStream(u)?.use { input ->
+                            val out = java.io.ByteArrayOutputStream()
+                            val buf = ByteArray(16 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n)
+                                if (out.size() > Images.MAX_BYTES) throw IOException("$name is larger than 50 MB, so Quire did not add it.")
+                            }
+                            out.toByteArray()
+                        } ?: throw IOException("Quire can't read $name.")
+                        val file = Md.uniqueName(name) { "${Images.ATTACHMENTS}/$it" in known }
+                        val rel = "${Images.ATTACHMENTS}/$file"
+                        f.writeBytes(rel, bytes)
+                        known.add(rel)
+                        added[rel] = Stamp(bytes.size.toLong(), System.currentTimeMillis())
+                    } catch (e: Exception) {
+                        message = e.message ?: "Quire could not add $name."
+                    }
+                }
+            }
+            message?.let { flash(it) }
+            if (added.isEmpty()) return@launch
+            images = images + added
+            folders = folders + Images.ATTACHMENTS
+            linkImages(added.keys.toList(), note)
+            syncAfterSave()
+        }
+    }
+
+    /** Writes `![name](path)` lines at the caret, each on a line of its own. */
+    private fun linkImages(rels: List<String>, note: String) {
+        if (active == note) {
+            val v = editor
+            val a = v.selection.min.coerceIn(0, v.text.length)
+            val b = v.selection.max.coerceIn(0, v.text.length)
+            val before = if (a > 0) v.text[a - 1] else null
+            val after = if (b < v.text.length) v.text[b] else null
+            val ins = Images.linkText(rels, Md.dir(note), before, after)
+            applyEdit(TextFieldValue(v.text.substring(0, a) + ins + v.text.substring(b), TextRange(a + ins.length)))
+            if (mode == Mode.Source) pendingEditorFocus = true
+        } else {
+            // The note is no longer open, so the images go at its end.
+            val t = files[note] ?: return
+            setDoc(note, t + Images.linkText(rels, Md.dir(note), t.lastOrNull(), null))
+        }
+    }
+
+    /** A paste of copied images into the editor links them. False when the clipboard holds text or no image. */
+    private fun pasteImages(): Boolean {
+        val cm = ctx.getSystemService(ClipboardManager::class.java) ?: return false
+        val clip = cm.primaryClip ?: return false
+        val items = (0 until clip.itemCount).map { clip.getItemAt(it) }
+        if (items.any { !it.text.isNullOrBlank() }) return false
+        val uris = items.mapNotNull { it.uri }.filter { u ->
+            (try {
+                ctx.contentResolver.getType(u)
+            } catch (e: Exception) {
+                null
+            })?.startsWith("image/") == true || Md.isImage(u.lastPathSegment ?: "")
+        }
+        if (uris.isEmpty()) return false
+        insertImages(uris)
+        return true
+    }
+
     // ---- Sync ------------------------------------------------------------------------------
 
     /** The remote for the open folder, from the settings. Null when sync is off. */
     private fun remote(): Remote? {
         val sy = settings.sync
         if (sy.provider == "none") return null
-        val cfg = sy.cfg[sy.provider] ?: emptyMap()
-        return Remote(sy.provider, cfg, SyncEngine.prefixFor(cfg, vault?.name ?: "notes"), sy.encrypt, sy.pass)
+        val cfg = (sy.cfg[sy.provider] ?: emptyMap()) - "prefix"
+        return Remote(sy.provider, cfg, SyncEngine.cleanPrefix(remoteFolder()), sy.encrypt, sy.pass)
+    }
+
+    /** The remote folder of the open notes folder, as the settings show it. */
+    fun remoteFolder(): String {
+        val v = vault ?: return "quire/notes/"
+        return settings.sync.folders[v.id]?.takeIf { it.isNotBlank() } ?: "quire/${v.name}/"
     }
 
     /** Sync is set up, its test passed and a folder is open. */
@@ -1171,7 +1390,9 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     throw SyncException("Could not read the folder. ${e.message ?: ""}".trim())
                 }
-                val out = withContext(Dispatchers.IO) { SyncEngine.run(r, local.files, local.folders, device, SyncEngine.loadBase(bf)) }
+                // An image is read only when its stamp changed since the last sync.
+                val pics = local.images.mapValues { (p, st) -> LocalImage(st.size, st.time) { f.readBytes(p) } }
+                val out = withContext(Dispatchers.IO) { SyncEngine.run(r, local.files, pics, local.folders, device, SyncEngine.loadBase(bf)) }
                 Result.success(out to local)
             } catch (e: CancellationException) {
                 throw e
@@ -1234,6 +1455,29 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
                     failed = "Couldn't move ${Md.base(p)} to .trash. ${e.message ?: ""}".trim()
                 }
             }
+            // Images: written when the file here is still what the sync saw, or else as a copy.
+            val known = if (open) withContext(Dispatchers.Main) { images.keys.toSet() } else local.images.keys
+            val pics = SyncEngine.planImages(out, known) { p ->
+                try {
+                    Sign.sha256Hex(f.readBytes(p))
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            for ((p, b) in pics.writes) {
+                try {
+                    f.writeBytes(p, b)
+                } catch (e: Exception) {
+                    failed = "Couldn't save ${p.substringAfterLast('/')}. ${e.message ?: ""}".trim()
+                }
+            }
+            for (p in pics.deletes) {
+                try {
+                    f.delete(p)
+                } catch (e: Exception) {
+                    failed = "Couldn't move ${p.substringAfterLast('/')} to .trash. ${e.message ?: ""}".trim()
+                }
+            }
             for (d in plan.mkdirs) {
                 try {
                     f.mkdirs(d)
@@ -1253,7 +1497,24 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 // The old base stays. The next sync compares with it, and no note is lost.
             }
-            failed?.let { m -> withContext(Dispatchers.Main) { flash(m) } }
+            withContext(Dispatchers.Main) {
+                if (open && vault?.id == ref.id && (pics.writes.isNotEmpty() || pics.deletes.isNotEmpty())) {
+                    val now = System.currentTimeMillis()
+                    val next = LinkedHashMap(images)
+                    for ((p, b) in pics.writes) next[p] = Stamp(b.size.toLong(), now)
+                    for (p in pics.deletes) next.remove(p)
+                    images = next
+                    folders = folders + pics.writes.flatMap { ancestors(it.first) }
+                }
+                val all = plan.conflicts + pics.conflicts
+                if (all.isNotEmpty()) {
+                    val who = if (all.size == 1) "A note" else "Some notes"
+                    flash("$who changed on two devices. Quire kept both versions: ${all.joinToString(", ")}.")
+                    // The copies go up on the next sync.
+                    syncAuto(1000)
+                }
+                failed?.let { m -> flash(m) }
+            }
         }
         if (open && (plan.writes.isNotEmpty() || plan.deletes.isNotEmpty() || plan.mkdirs.isNotEmpty() || plan.rmdirs.isNotEmpty())) {
             val nf = LinkedHashMap(files)
@@ -1282,12 +1543,6 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (t != null && a !in dirty && editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t))
             updateCount()
             persistSession()
-        }
-        if (plan.conflicts.isNotEmpty()) {
-            val who = if (plan.conflicts.size == 1) "A note" else "Some notes"
-            flash("$who changed on two devices. Quire kept both versions: ${plan.conflicts.joinToString(", ")}.")
-            // The copies go up on the next sync.
-            syncAuto(1000)
         }
     }
 
@@ -1370,6 +1625,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (has) Cmd("Rename note") { startRename() } else null,
             if (has) Cmd("Delete note") { deleteNote() } else null,
             if (has) Cmd("Close tab") { active?.let { closeTab(it) } } else null,
+            if (has) Cmd("Insert image") { requestImagePick() } else null,
             if (syncReady()) Cmd("Sync now") { syncNow() } else null,
             Cmd("Open settings") { openSettings() },
             Cmd("Switch folder…") { goWelcome() },
@@ -1549,6 +1805,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             KeyEvent.KEYCODE_PERIOD -> toggleFocus()
             KeyEvent.KEYCODE_BACKSLASH -> drawerOpen = !drawerOpen
             KeyEvent.KEYCODE_N -> newNote()
+            KeyEvent.KEYCODE_V -> if (!inEditor || !pasteImages()) return false
             KeyEvent.KEYCODE_B -> if (inEditor) wrapSelection("**") else return false
             KeyEvent.KEYCODE_I -> if (inEditor) wrapSelection("*") else return false
             else -> return false

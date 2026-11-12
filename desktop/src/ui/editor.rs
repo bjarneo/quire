@@ -23,12 +23,30 @@ pub fn body(v: V) -> El {
     let round = left && (focus || first.is_none() || first != v.s.active.as_ref());
     let corner = if round { [10.0, 0.0, 0.0, 0.0] } else { [0.0; 4] };
     let mut sheet = col().key("sheet").grow(1.0).min_w(0.0).min_h(0.0).fill(p.bg).clip_corners(corner).corners(corner);
+    if v.has_doc() {
+        // Image files dropped on the note link at the caret. Wayland gives no file drops yet,
+        // so there a copied file or image goes in with paste.
+        sheet = sheet
+            .on_drop_files(|s: &mut App, files, tx| {
+                s.drop_over = false;
+                s.insert_images(files, tx);
+            })
+            .accepts_extensions(&md::IMAGE_EXT)
+            .on_drop_hover(|s: &mut App, over, _| s.drop_over = over);
+        if v.s.drop_over {
+            sheet = sheet.box_shadow(rune::Shadow { x: 0.0, y: 0.0, blur: 0.0, spread: 2.0, color: p.acc, inset: true });
+        }
+    }
     let top = if focus { 0.0 } else { 1.0 };
     let side = if left { 1.0 } else { 0.0 };
     if top + side > 0.0 {
         sheet = sheet.border_sides([top, 0.0, 0.0, side], p.line).border_layout();
     }
-    let mut inner = row().key("sheet-row").grow(1.0).min_h(0.0).w_full().child(doc_scroll(v));
+    let mut area = col().key("doc-area").grow(1.0).min_w(0.0).min_h(0.0).h_full();
+    if v.has_doc() && !focus && v.s.mode == Mode::Source && v.s.settings().toolbar {
+        area = area.child(toolbar(v));
+    }
+    let mut inner = row().key("sheet-row").grow(1.0).min_h(0.0).w_full().child(area.child(doc_scroll(v)));
     if v.right_visible() {
         inner = inner.child(outline::outline(v));
     }
@@ -64,7 +82,10 @@ fn doc_scroll(v: V) -> El {
     if v.has_doc() {
         let size = s.settings().size as f32;
         let pad_x = if focus { clamp(20.0, v.vw * 0.06, 64.0) } else { clamp(20.0, v.vw * 0.05, 56.0) };
-        let (pad_t, pad_b) = if focus { (v.vh * 0.16, v.vh * 0.48) } else { (34.0, v.vh * 0.38) };
+        // Under the toolbar, the breadcrumb sits as far below its line as it sits below the
+        // title bar without it.
+        let toolbar = s.mode == Mode::Source && s.settings().toolbar;
+        let (pad_t, pad_b) = if focus { (v.vh * 0.16, v.vh * 0.48) } else { (if toolbar { 24.0 } else { 34.0 }, v.vh * 0.38) };
         let ch = if focus { 68.0 } else { 72.0 };
         let mut column = col()
             .key("doc-col")
@@ -96,7 +117,47 @@ fn doc_scroll(v: V) -> El {
     }
     // A scroll viewport is a column: in a row its content would stretch to the viewport's
     // height and leave nothing to scroll.
-    col().key("doc-scroll").grow(1.0).min_w(0.0).min_h(0.0).h_full().scroll(ScrollSpec { stick_bottom: false }).child(content)
+    col().key("doc-scroll").grow(1.0).min_w(0.0).min_h(0.0).w_full().scroll(ScrollSpec { stick_bottom: false }).child(content)
+}
+
+/// The formatting toolbar: a row over the note, lined up with its text column. The ink of the
+/// first icon sits on the text's left edge: its button reaches 6 points past the icon, and the
+/// B starts 3.5 points into its box.
+fn toolbar(v: V) -> El {
+    use super::widgets::{BOLD, BULLETS, CODE, HEADING, IMAGE, ITALIC, LINK, NUMBERS, QUOTE, STRIKE, TASK, WIKI, icon_button};
+    use crate::format::Fmt;
+    let p = v.p;
+    let s = v.s;
+    let k = crate::keys::k;
+    let btn = |key: &str, glyph: &'static rune::Icon, help: String, f: Fmt| icon_button(p, key, glyph, 16.0, &help).on_press_tx(move |s: &mut App, tx| s.format(f, tx));
+    let sep = |key: &str| el().key(key).w(1.0).h(16.0).mx(6.0).fill(p.line);
+    let pad_x = clamp(20.0, v.vw * 0.05, 56.0);
+    let mut r = row()
+        .key("toolbar-row")
+        .w_full()
+        .h(40.0)
+        .px(pad_x)
+        .center_y()
+        .gap(2.0)
+        .child(btn("fmt-bold", &BOLD, format!("Bold ({})", k(&["Mod", "B"])), Fmt::Bold).ml(-9.5))
+        .child(btn("fmt-italic", &ITALIC, format!("Italic ({})", k(&["Mod", "I"])), Fmt::Italic))
+        .child(btn("fmt-strike", &STRIKE, "Strikethrough".into(), Fmt::Strike))
+        .child(btn("fmt-heading", &HEADING, "Heading".into(), Fmt::Heading))
+        .child(sep("sep-1"))
+        .child(btn("fmt-link", &LINK, format!("Link ({})", k(&["Mod", "K"])), Fmt::Link))
+        .child(btn("fmt-wiki", &WIKI, "Note link".into(), Fmt::Wiki))
+        .child(sep("sep-2"))
+        .child(btn("fmt-bullets", &BULLETS, "Bulleted list".into(), Fmt::Bullet))
+        .child(btn("fmt-numbers", &NUMBERS, "Numbered list".into(), Fmt::Number))
+        .child(btn("fmt-task", &TASK, "Task".into(), Fmt::Task))
+        .child(btn("fmt-quote", &QUOTE, "Quote".into(), Fmt::Quote))
+        .child(btn("fmt-code", &CODE, "Code".into(), Fmt::Code))
+        .child(sep("sep-3"))
+        .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)));
+    if s.settings().width == "readable" {
+        r = r.max_w(s.settings().size as f32 * 0.6 * 72.0 + 2.0 * pad_x);
+    }
+    col().key("toolbar").w_full().items_center().border_sides([0.0, 0.0, 1.0, 0.0], p.line).border_layout().child(r)
 }
 
 fn crumb(v: V) -> El {
@@ -214,6 +275,7 @@ fn source(v: V) -> El {
             s.after_edit();
             typewriter(s, tx);
         })
+        .on_input_paste(|s: &mut App, content, tx| s.paste_content(content, tx))
         .on_input_key(on_editor_key);
     el().key("source").w_full().child(mirror).child(input)
 }
@@ -238,7 +300,8 @@ pub fn link_at_caret(text: &str, caret: usize) -> Option<String> {
     let line = &text[ls..le];
     let col = caret - ls;
     for (t, r) in md::inline_tokens(line) {
-        if t == Tok::Wiki && col >= r.start && col <= r.end {
+        // `[[cat.png]]` names an image, not a note, so there is no note to open or make.
+        if t == Tok::Wiki && col >= r.start && col <= r.end && !md::is_image(&md::link_target(&line[r.start + 2..r.end - 2])) {
             return Some(md::link_target(&line[r.start + 2..r.end - 2]).to_string());
         }
     }
@@ -416,9 +479,15 @@ fn hl_inline(p: &Pal, ln: &str, from: usize, base: Base, names: &md::Names, span
             }
             Tok::Wiki => {
                 let inner = &s[a + 2..b - 2];
+                let image = md::is_image(&md::link_target(inner));
                 let ok = names.resolve(&md::link_target(inner)).is_some();
                 mk(a, a + 2, spans);
-                let sp = Span { color: Some(if ok { p.acc } else { p.mute }), underline: Some(if ok { p.link_line } else { p.mark }), ..Span::default() };
+                // An image embed is no note link: it gets the second ink and no underline.
+                let sp = if image {
+                    Span { color: Some(p.ink2), ..Span::default() }
+                } else {
+                    Span { color: Some(if ok { p.acc } else { p.mute }), underline: Some(if ok { p.link_line } else { p.mark }), ..Span::default() }
+                };
                 styled(a + 2, b - 2, sp, spans, strikes);
                 mk(b - 2, b, spans);
             }

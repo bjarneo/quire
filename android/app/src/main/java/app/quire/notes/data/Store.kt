@@ -23,6 +23,12 @@ data class SyncSettings(
     val connected: Boolean = false,
     /** When the last sync ended, in milliseconds since 1970. */
     val lastSync: Long? = null,
+    /**
+     * The remote folder of each notes folder, by the id of the notes folder. A notes folder
+     * without an entry uses quire/<folder name>/, so two notes folders never share a remote
+     * folder by accident.
+     */
+    val folders: Map<String, String> = emptyMap(),
 )
 
 /** Settings and their defaults, from initState() in the prototype. */
@@ -103,7 +109,8 @@ class Store(ctx: Context) {
             for (pid in c.keys()) {
                 val m = HashMap<String, String>()
                 val po = c.getJSONObject(pid)
-                for (k in po.keys()) m[k] = po.getString(k)
+                // The remote folder used to be one value for every notes folder. Each folder has its own now.
+                for (k in po.keys()) if (k != "prefix") m[k] = po.getString(k)
                 cfg[pid] = m
             }
         }
@@ -129,6 +136,7 @@ class Store(ctx: Context) {
                 encrypt = sy?.optBoolean("encrypt", false) ?: false,
                 connected = sy?.optBoolean("connected", false) ?: false,
                 lastSync = sy?.optLong("lastSync", 0L)?.takeIf { it > 0 },
+                folders = sy?.optJSONObject("folders")?.let { f -> f.keys().asSequence().associateWith { f.getString(it) } } ?: emptyMap(),
             ),
         )
     }
@@ -138,7 +146,7 @@ class Store(ctx: Context) {
         val cfg = JSONObject()
         for ((pid, m) in s.sync.cfg) {
             val po = JSONObject()
-            for ((k, v) in m) if (k !in Sync.secretKeys) po.put(k, v)
+            for ((k, v) in m) if (k !in Sync.secretKeys && k != "prefix") po.put(k, v)
             cfg.put(pid, po)
         }
         val o = JSONObject()
@@ -151,6 +159,7 @@ class Store(ctx: Context) {
                 "sync", JSONObject().put("provider", s.sync.provider).put("when", s.sync.whenSync)
                     .put("encrypt", s.sync.encrypt).put("cfg", cfg)
                     .put("connected", s.sync.connected).put("lastSync", s.sync.lastSync ?: 0L)
+                    .put("folders", JSONObject().also { f -> for ((k, v) in s.sync.folders) f.put(k, v) })
             )
         sp.edit().putString("settings", o.toString()).apply()
     }

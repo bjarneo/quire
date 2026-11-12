@@ -13,7 +13,11 @@ import java.io.IOException
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
-class Loaded(val files: Map<String, String>, val folders: Set<String>)
+/** The size and the change time in milliseconds of a file, to tell when it changed. */
+data class Stamp(val size: Long, val time: Long)
+
+/** A loaded vault: the text of each note, the folders, and the image files with their stamps. */
+class Loaded(val files: Map<String, String>, val folders: Set<String>, val images: Map<String, Stamp> = emptyMap())
 
 /**
  * Reads and writes the .md files of one vault. Paths are relative to the vault root and use "/".
@@ -23,6 +27,12 @@ interface VaultFs {
     val displayPath: String
     fun load(): Loaded
     fun write(path: String, content: String)
+
+    /** The bytes of a file, such as an image. */
+    fun readBytes(path: String): ByteArray
+
+    /** Writes the bytes of a file, such as an image, and makes its folders. */
+    fun writeBytes(path: String, bytes: ByteArray)
     fun rename(from: String, to: String)
     fun delete(path: String)
     fun mkdirs(dir: String)
@@ -71,7 +81,7 @@ abstract class BaseFs : VaultFs {
         if (bom.remove(from)) bom.add(to)
     }
 
-    protected fun skip(name: String) = name.startsWith(".")
+    protected fun skip(name: String) = name.startsWith(".") || name == "node_modules"
 
     /** Drops the line-ending flags of the notes in [dir], after the folder went away. */
     protected fun forgetDir(dir: String) {
@@ -88,6 +98,7 @@ class LocalFs(private val root: File) : BaseFs() {
         if (!root.isDirectory) throw FileNotFoundException("The folder ${root.absolutePath} does not exist.")
         val files = LinkedHashMap<String, String>()
         val folders = LinkedHashSet<String>()
+        val images = LinkedHashMap<String, Stamp>()
         fun walk(dir: File, rel: String) {
             val kids = dir.listFiles() ?: return
             for (k in kids.sortedBy { it.name }) {
@@ -98,11 +109,26 @@ class LocalFs(private val root: File) : BaseFs() {
                     walk(k, r)
                 } else if (Md.isNote(k.name)) {
                     files[r] = decode(r, k.readText())
+                } else if (Md.isImage(k.name)) {
+                    images[r] = Stamp(k.length(), k.lastModified())
                 }
             }
         }
         walk(root, "")
-        return Loaded(files, folders)
+        return Loaded(files, folders, images)
+    }
+
+    override fun readBytes(path: String): ByteArray = File(root, path).readBytes()
+
+    override fun writeBytes(path: String, bytes: ByteArray) {
+        val f = File(root, path)
+        f.parentFile?.mkdirs()
+        val tmp = File(f.parentFile, ".${f.name}.tmp")
+        tmp.writeBytes(bytes)
+        if (!tmp.renameTo(f)) {
+            f.writeBytes(bytes)
+            tmp.delete()
+        }
     }
 
     override fun write(path: String, content: String) {
@@ -124,18 +150,15 @@ class LocalFs(private val root: File) : BaseFs() {
         moveFlags(from, to)
     }
 
-    /** Moves the note to `.trash` inside the folder, so a mistaken delete can be undone. */
+    /** Moves the file to `.trash` inside the folder, so a mistaken delete can be undone. The name keeps its extension. */
     override fun delete(path: String) {
         val src = File(root, path)
         if (!src.exists()) return
         val trash = File(root, ".trash")
         trash.mkdirs()
-        val base = path.replace('/', ' ').let { if (it.endsWith(".md", true)) it.dropLast(3) else it }
-        var dst = File(trash, "$base.md")
-        var n = 2
-        while (dst.exists()) dst = File(trash, "$base ${n++}.md")
+        val dst = File(trash, Md.trashFileName(path) { File(trash, it).exists() })
         if (!src.renameTo(dst)) {
-            dst.writeText(src.readText())
+            src.copyTo(dst)
             src.delete()
         }
     }
@@ -182,34 +205,50 @@ class SafFs(private val ctx: Context, private val tree: Uri) : BaseFs() {
         docs[""] = rootUri
         val files = LinkedHashMap<String, String>()
         val folders = LinkedHashSet<String>()
+        val images = LinkedHashMap<String, Stamp>()
+        class Kid(val id: String, val name: String, val mime: String, val size: Long, val time: Long)
         fun walk(docId: String, rel: String) {
             val q = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
-            val kids = ArrayList<Triple<String, String, String>>()
+            val kids = ArrayList<Kid>()
             val cursor = cr.query(
                 q,
-                arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE),
+                arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE, Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED),
                 null, null, null
             ) ?: throw IOException("Quire can't read this folder.")
             cursor.use { c ->
-                while (c.moveToNext()) kids.add(Triple(c.getString(0), c.getString(1) ?: "", c.getString(2) ?: ""))
+                while (c.moveToNext()) {
+                    val size = if (c.isNull(3)) -1L else c.getLong(3)
+                    val time = if (c.isNull(4)) 0L else c.getLong(4)
+                    kids.add(Kid(c.getString(0), c.getString(1) ?: "", c.getString(2) ?: "", size, time))
+                }
             }
-            for ((id, name, mime) in kids.sortedBy { it.second }) {
-                if (skip(name)) continue
-                val r = Md.join(rel, name)
-                val uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
-                if (mime == Document.MIME_TYPE_DIR) {
+            for (k in kids.sortedBy { it.name }) {
+                if (skip(k.name)) continue
+                val r = Md.join(rel, k.name)
+                val uri = DocumentsContract.buildDocumentUriUsingTree(tree, k.id)
+                if (k.mime == Document.MIME_TYPE_DIR) {
                     folders.add(r)
                     docs[r] = uri
-                    walk(id, r)
-                } else if (Md.isNote(name)) {
+                    walk(k.id, r)
+                } else if (Md.isNote(k.name)) {
                     docs[r] = uri
                     files[r] = decode(r, read(uri))
+                } else if (Md.isImage(k.name)) {
+                    docs[r] = uri
+                    images[r] = Stamp(k.size, k.time)
                 }
             }
         }
         walk(rootId, "")
-        return Loaded(files, folders)
+        return Loaded(files, folders, images)
     }
+
+    override fun readBytes(path: String): ByteArray {
+        val uri = docs[path] ?: throw FileNotFoundException("No file at $path")
+        return cr.openInputStream(uri)?.use { it.readBytes() } ?: throw FileNotFoundException("No file at $path")
+    }
+
+    override fun writeBytes(path: String, bytes: ByteArray) = put(path, bytes)
 
     private fun read(uri: Uri): String =
         cr.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
@@ -233,9 +272,7 @@ class SafFs(private val ctx: Context, private val tree: Uri) : BaseFs() {
     private fun createFile(path: String): Uri {
         val name = path.substringAfterLast('/')
         val parent = DocumentFile.fromTreeUri(ctx, dirUri(Md.dir(path))) ?: throw IOException("Can't open ${Md.dir(path)}")
-        // A known type for .md keeps providers from adding a second extension.
-        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension("md") ?: "application/octet-stream"
-        var uri = parent.createFile(mime, name)?.uri ?: throw IOException("Can't create $path")
+        var uri = parent.createFile(mimeOf(name), name)?.uri ?: throw IOException("Can't create $path")
         if (displayName(uri) != name) {
             uri = DocumentsContract.renameDocument(cr, uri, name) ?: uri
         }
@@ -243,8 +280,9 @@ class SafFs(private val ctx: Context, private val tree: Uri) : BaseFs() {
         return uri
     }
 
-    override fun write(path: String, content: String) {
-        val bytes = encode(path, content).toByteArray(Charsets.UTF_8)
+    override fun write(path: String, content: String) = put(path, encode(path, content).toByteArray(Charsets.UTF_8))
+
+    private fun put(path: String, bytes: ByteArray) {
         fun put(uri: Uri) {
             val out = try {
                 cr.openOutputStream(uri, "wt")
@@ -273,21 +311,22 @@ class SafFs(private val ctx: Context, private val tree: Uri) : BaseFs() {
         moveFlags(from, to)
     }
 
-    /** Copies the note into `.trash` inside the folder, then removes it, so it can come back. */
+    /** Copies the file into `.trash` inside the folder, then removes it, so it can come back. The name keeps its extension. */
     override fun delete(path: String) {
         val uri = docs[path] ?: return
-        val text = read(uri)
-        val base = path.replace('/', ' ').let { if (it.endsWith(".md", true)) it.dropLast(3) else it }
+        val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
         val trash = DocumentFile.fromTreeUri(ctx, dirUri(".trash"))
-        var name = "$base.md"
-        var n = 2
-        while (trash?.findFile(name) != null) name = "$base ${n++}.md"
-        val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension("md") ?: "application/octet-stream"
-        val made = trash?.createFile(mime, name)?.uri ?: throw IOException("Can't move $path to .trash")
-        cr.openOutputStream(made, "w")?.use { it.write(text.toByteArray(Charsets.UTF_8)) } ?: throw IOException("Can't write .trash/$name")
+        val name = Md.trashFileName(path) { trash?.findFile(it) != null }
+        var made = trash?.createFile(mimeOf(name), name)?.uri ?: throw IOException("Can't move $path to .trash")
+        if (displayName(made) != name) made = DocumentsContract.renameDocument(cr, made, name) ?: made
+        cr.openOutputStream(made, "w")?.use { it.write(bytes) } ?: throw IOException("Can't write .trash/$name")
         docs.remove(path)
         DocumentsContract.deleteDocument(cr, uri)
     }
+
+    /** A known type for the extension keeps providers from adding a second extension. */
+    private fun mimeOf(name: String): String =
+        MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
 
     override fun mkdirs(dir: String) {
         dirUri(dir)
