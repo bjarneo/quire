@@ -27,7 +27,14 @@ data class SyncSettings(
 
 /** Settings and their defaults, from initState() in the prototype. */
 data class Settings(
+    /** The mode: "light", "dark" or "system". */
     val theme: String = "light",
+    /** The theme id for light mode. Null means Paper. */
+    val lightTheme: String? = null,
+    /** The theme id for dark mode. Null means Ink. */
+    val darkTheme: String? = null,
+    /** "#rrggbb", or empty for the accent of the theme. */
+    val accent: String = "",
     val font: String = "plex",
     val size: Int = 16,
     val width: String = "readable",
@@ -102,6 +109,9 @@ class Store(ctx: Context) {
         }
         return Settings(
             theme = o.optString("theme", d.theme),
+            lightTheme = o.optString("lightTheme", "").ifEmpty { null },
+            darkTheme = o.optString("darkTheme", "").ifEmpty { null },
+            accent = o.optString("accent", d.accent),
             font = o.optString("font", d.font),
             size = o.optInt("size", d.size).coerceIn(12, 24),
             width = o.optString("width", d.width),
@@ -132,7 +142,8 @@ class Store(ctx: Context) {
             cfg.put(pid, po)
         }
         val o = JSONObject()
-            .put("theme", s.theme).put("font", s.font).put("size", s.size).put("width", s.width)
+            .put("theme", s.theme).put("lightTheme", s.lightTheme ?: "").put("darkTheme", s.darkTheme ?: "").put("accent", s.accent)
+            .put("font", s.font).put("size", s.size).put("width", s.width)
             .put("previewFont", s.previewFont).put("spellcheck", s.spellcheck).put("continueLists", s.continueLists)
             .put("dimFocus", s.dimFocus).put("typewriter", s.typewriter).put("updateLinks", s.updateLinks)
             .put("newFolder", s.newFolder)

@@ -23,33 +23,43 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.quire.notes.core.Sync
-import app.quire.notes.core.sync.SyncEngine
 import app.quire.notes.core.SyncField
+import app.quire.notes.core.Themes
+import app.quire.notes.core.sync.SyncEngine
 import app.quire.notes.data.Settings
 import app.quire.notes.state.QuireViewModel
 
@@ -172,11 +182,140 @@ private fun <T> opts(cur: T, vararg o: Pair<T, String>, set: (T) -> Unit) = o.ma
 @Composable
 private fun Appearance(vm: QuireViewModel) {
     val s = vm.settings
-    SetRow("Theme", "Match system follows your phone's setting.") {
+    SetRow("Mode", "Match system follows the light or dark setting of your phone.") {
         Segmented(opts(s.theme, "light" to "Light", "dark" to "Dark", "system" to "Match system") { v -> vm.updateSettings { it.copy(theme = v) } })
     }
+    ThemeGrid(vm, dark = false)
+    ThemeGrid(vm, dark = true)
+    AccentBlock(vm)
     SetRow("Preview typeface", "Used when reading a note in preview.") {
         Segmented(opts(s.previewFont, "serif" to "Serif", "sans" to "Sans") { v -> vm.updateSettings { it.copy(previewFont = v) } })
+    }
+}
+
+/** The themes for light or dark mode as cards, each with a small picture of its colours. Two cards go in a row. */
+@Composable
+private fun ThemeGrid(vm: QuireViewModel, dark: Boolean) {
+    val c = LocalQ.current
+    val picked = vm.themeId(dark)
+    val accent = vm.settings.accent
+    SetBlock(if (dark) "Dark theme" else "Light theme", if (dark) "Used in dark mode." else "Used in light mode.") {
+        Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Themes.list.filter { it.dark == dark }.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { t ->
+                        val tp = remember(t.id, dark, accent) { QColors.of(Themes.themed(t.id, dark, accent)) }
+                        val on = picked == t.id
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .then(if (on) Modifier.border(2.dp, c.acc, RoundedCornerShape(9.dp)) else Modifier)
+                                .tap(RoundedCornerShape(9.dp)) { vm.pickTheme(t.id, dark) }
+                                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            ThemePicture(tp)
+                            Txt(
+                                t.name, 12.5.sp, if (on) c.ink else c.ink2, Modifier.padding(horizontal = 2.dp),
+                                weight = if (on) FontWeight.W500 else FontWeight.W400, maxLines = 1,
+                            )
+                        }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** A sidebar strip, an ink bar, a muted bar, an accent bar and a mark bar, in the colours of a theme. */
+@Composable
+private fun ThemePicture(tp: QColors) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(tp.bg)
+            .border(1.dp, tp.line, RoundedCornerShape(6.dp))
+    ) {
+        Box(Modifier.width(20.dp).fillMaxHeight().background(tp.side))
+        Column(Modifier.weight(1f).padding(start = 10.dp, end = 10.dp, top = 11.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.width(44.dp).height(5.dp).background(tp.ink, RoundedCornerShape(2.5.dp)))
+            Box(Modifier.width(62.dp).height(4.dp).background(tp.mute, RoundedCornerShape(2.dp)))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.width(20.dp).height(4.dp).background(tp.acc, RoundedCornerShape(2.dp)))
+                Box(Modifier.width(28.dp).height(4.dp).background(tp.mark, RoundedCornerShape(2.dp)))
+            }
+        }
+    }
+}
+
+/** The accent: the accent of the theme, a set of swatches, or any #rrggbb value. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccentBlock(vm: QuireViewModel) {
+    val c = LocalQ.current
+    val current = vm.settings.accent.trim().lowercase()
+    val own = remember(vm.themeId(c.dark), c.dark) { QColors.of(Themes.themePal(vm.themeId(c.dark), c.dark)).acc }
+    var typed by remember { mutableStateOf(vm.settings.accent) }
+    fun pick(hex: String) {
+        typed = hex
+        vm.setAccent(hex)
+    }
+    SetBlock("Accent colour", "Links, tags, buttons and the selection use it.") {
+        FlowRow(
+            Modifier.padding(top = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            Themes.accents.forEach { (hex, _) ->
+                val on = current == hex
+                if (hex.isEmpty()) {
+                    Row(
+                        Modifier
+                            .height(30.dp)
+                            .border(1.dp, if (on) c.acc else c.line, RoundedCornerShape(15.dp))
+                            .tap(RoundedCornerShape(15.dp)) { pick("") }
+                            .padding(start = 8.dp, end = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Box(Modifier.size(14.dp).background(own, CircleShape))
+                        Txt("Theme", 12.5.sp, if (on) c.ink else c.ink2, weight = if (on) FontWeight.W500 else FontWeight.W400, maxLines = 1)
+                    }
+                } else {
+                    val fill = remember(hex) { Color(Themes.parseAccent(hex)!!.argb()) }
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .drawBehind {
+                                // A picked swatch gets a ring with a gap, as on the desktop.
+                                if (on) {
+                                    drawCircle(c.ink2, radius = size.minDimension / 2 + 4.dp.toPx())
+                                    drawCircle(c.bg, radius = size.minDimension / 2 + 2.dp.toPx())
+                                }
+                                drawCircle(fill)
+                            }
+                            .tap(CircleShape, pressed = Color.Transparent) { pick(hex) }
+                    )
+                }
+            }
+        }
+        val bad = typed.isNotBlank() && Themes.parseAccent(typed) == null
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Txt("Custom", 12.5.sp, c.ink2)
+            TextInput(typed, "#7a4fba", if (bad) c.err else c.line, Modifier.width(120.dp)) { v ->
+                typed = v
+                val t = v.trim().lowercase()
+                if (t.isEmpty()) {
+                    vm.setAccent("")
+                } else if (Themes.parseAccent(t) != null) {
+                    vm.setAccent(if (t.startsWith("#")) t else "#$t")
+                }
+            }
+        }
     }
 }
 

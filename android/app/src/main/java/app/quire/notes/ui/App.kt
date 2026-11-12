@@ -29,7 +29,9 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import app.quire.notes.core.Themes
 import app.quire.notes.state.QuireViewModel
 import app.quire.notes.state.Screen
 
@@ -38,7 +40,10 @@ fun QuireApp(vm: QuireViewModel) {
     val sysDark = isSystemInDarkTheme()
     LaunchedEffect(sysDark) { vm.systemDark = sysDark }
     val dark = vm.settings.theme == "dark" || (vm.settings.theme == "system" && sysDark)
-    val c = if (dark) DarkQ else LightQ
+    // The theme of the current mode, with the accent from the settings.
+    val themeId = vm.themeId(dark)
+    val accent = vm.settings.accent
+    val c = remember(themeId, dark, accent) { QColors.of(Themes.themed(themeId, dark, accent)) }
     val activity = LocalActivity.current
     LaunchedEffect(dark, activity) { activity?.let { setBars(it, dark) } }
     val scheme = if (dark) {
@@ -48,10 +53,10 @@ fun QuireApp(vm: QuireViewModel) {
     }
     CompositionLocalProvider(
         LocalQ provides c,
-        LocalTextSelectionColors provides TextSelectionColors(handleColor = c.acc, backgroundColor = Selection),
+        LocalTextSelectionColors provides TextSelectionColors(handleColor = c.acc, backgroundColor = c.sel),
     ) {
         MaterialTheme(colorScheme = scheme) {
-            CompositionLocalProvider(LocalTextSelectionColors provides TextSelectionColors(handleColor = c.acc, backgroundColor = Selection)) {
+            CompositionLocalProvider(LocalTextSelectionColors provides TextSelectionColors(handleColor = c.acc, backgroundColor = c.sel)) {
                 Box(Modifier.fillMaxSize().background(c.bg)) {
                     when (vm.screen) {
                         Screen.Loading -> Unit

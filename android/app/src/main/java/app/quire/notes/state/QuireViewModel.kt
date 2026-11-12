@@ -18,6 +18,7 @@ import androidx.lifecycle.viewModelScope
 import app.quire.notes.core.Md
 import app.quire.notes.core.Sample
 import app.quire.notes.core.Sync
+import app.quire.notes.core.Themes
 import app.quire.notes.core.sync.Outcome
 import app.quire.notes.core.sync.Remote
 import app.quire.notes.core.sync.SyncEngine
@@ -1000,6 +1001,21 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun isDark(): Boolean = settings.theme == "dark" || (settings.theme == "system" && systemDark)
+
+    /** The theme picked for dark or light mode. Without a pick it is Ink or Paper. */
+    fun themeId(dark: Boolean): String {
+        val id = if (dark) settings.darkTheme else settings.lightTheme
+        return id?.let { Themes.def(it) }?.takeIf { it.dark == dark }?.id ?: if (dark) "ink" else "paper"
+    }
+
+    /** Picks the theme for one mode. A pick in the list of the other mode switches to that mode, unless the mode is Match system. */
+    fun pickTheme(id: String, dark: Boolean) = updateSettings { s ->
+        val t = if (dark) s.copy(darkTheme = id) else s.copy(lightTheme = id)
+        if (s.theme == "system") t else t.copy(theme = if (dark) "dark" else "light")
+    }
+
+    /** Sets the accent: "#rrggbb", or empty for the accent of the theme. */
+    fun setAccent(hex: String) = updateSettings { it.copy(accent = hex) }
 
     // ---- Settings --------------------------------------------------------------------------
 

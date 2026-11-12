@@ -16,8 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -192,37 +195,40 @@ fun SourceEditor(vm: QuireViewModel, screenH: Dp) {
                 contentAlignment = Alignment.TopCenter,
             ) {
                 val key = vm.docKey
-                BasicTextField(
-                    value = value,
-                    onValueChange = { vm.onEditorChange(key, it) },
-                    modifier = Modifier
-                        .widthIn(max = colMax)
-                        .fillMaxWidth()
-                        .onGloballyPositioned {
-                            // The field is the only child of the padded box, so it starts at the top padding.
-                            fieldY = with(density) { topPad.toPx() }
-                            fieldH = it.size.height
-                        }
-                        .focusRequester(fr)
-                        .onFocusChanged { vm.editorFocused = it.isFocused }
-                        .drawBehind { layout?.let { drawDecos(it, rich.decos, basePx) } }
-                        .linkGestures(vm) { layout },
-                    textStyle = style,
-                    cursorBrush = SolidColor(c.acc),
-                    visualTransformation = vt,
-                    onTextLayout = { layout = it },
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrectEnabled = set.spellcheck,
-                        keyboardType = KeyboardType.Text,
-                    ),
-                    decorationBox = { inner ->
-                        Box {
-                            if (value.text.isEmpty()) BasicText("Start writing…", style = style.copy(color = c.mute))
-                            inner()
-                        }
-                    },
-                )
+                // The editor selection is a little stronger than the one in fields.
+                CompositionLocalProvider(LocalTextSelectionColors provides TextSelectionColors(handleColor = c.acc, backgroundColor = c.selEditor)) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = { vm.onEditorChange(key, it) },
+                        modifier = Modifier
+                            .widthIn(max = colMax)
+                            .fillMaxWidth()
+                            .onGloballyPositioned {
+                                // The field is the only child of the padded box, so it starts at the top padding.
+                                fieldY = with(density) { topPad.toPx() }
+                                fieldH = it.size.height
+                            }
+                            .focusRequester(fr)
+                            .onFocusChanged { vm.editorFocused = it.isFocused }
+                            .drawBehind { layout?.let { drawDecos(it, rich.decos, basePx) } }
+                            .linkGestures(vm) { layout },
+                        textStyle = style,
+                        cursorBrush = SolidColor(c.acc),
+                        visualTransformation = vt,
+                        onTextLayout = { layout = it },
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = set.spellcheck,
+                            keyboardType = KeyboardType.Text,
+                        ),
+                        decorationBox = { inner ->
+                            Box {
+                                if (value.text.isEmpty()) BasicText("Start writing…", style = style.copy(color = c.mute))
+                                inner()
+                            }
+                        },
+                    )
+                }
             }
         }
     }

@@ -76,7 +76,7 @@ object Highlighter {
                     val ok = Md.resolve(x.names, inner.split('|')[0]) != null
                     x.mk(st, st + 2)
                     x.sp(st + 2, en - 2, merge(base, SpanStyle(color = if (ok) c.acc else c.mute)))
-                    x.deco(st + 2, en - 2, if (ok) LinkLine else c.mark, DecoKind.Underline, dashed = !ok)
+                    x.deco(st + 2, en - 2, if (ok) c.linkLine else c.mark, DecoKind.Underline, dashed = !ok)
                     x.mk(en - 2, en)
                 }
                 m.groups[3] != null -> {
@@ -227,7 +227,7 @@ object Inline {
                     b.withLink(LinkAnnotation.Clickable("wiki") { act.openLink(tg) }) {
                         withStyle(SpanStyle(color = if (ok) c.acc else c.mute)) { append(label) }
                     }
-                    decos.add(Deco(st, b.length, if (ok) LinkLinePreview else c.mark, DecoKind.Underline, dashed = !ok))
+                    decos.add(Deco(st, b.length, if (ok) c.linkLinePreview else c.mark, DecoKind.Underline, dashed = !ok))
                 }
                 m.groups[3] != null -> b.withStyle(SpanStyle(fontWeight = FontWeight.W600)) {
                     inl(t.substring(2, t.length - 2), this, decos, c, names, mono, act, scale)

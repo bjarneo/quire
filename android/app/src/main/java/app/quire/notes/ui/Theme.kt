@@ -11,8 +11,11 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import app.quire.notes.R
+import app.quire.notes.core.Pal
+import app.quire.notes.core.Rgb
+import app.quire.notes.core.Themes
 
-/** The palette from applyTheme() in the prototype. */
+/** The colours that the UI draws with, made from a [Pal] of the picked theme. */
 @Immutable
 data class QColors(
     val desk: Color,
@@ -25,41 +28,45 @@ data class QColors(
     val line: Color,
     val hover: Color,
     val act: Color,
+    /** The accent for text. It reads on the background. */
     val acc: Color,
     val soft: Color,
     val code: Color,
     val err: Color,
     val dark: Boolean,
-)
+    /** Primary buttons and switches. */
+    val button: Color,
+    val buttonPressed: Color,
+    /** Text and icons on the accent. */
+    val onAcc: Color,
+    val linkLine: Color,
+    val linkLinePreview: Color,
+    /** The selection in fields, and in the editor. */
+    val sel: Color,
+    val selEditor: Color,
+    /** The scrim behind the drawer and the sheets. */
+    val scrim: Color,
+) {
+    companion object {
+        fun of(p: Pal): QColors {
+            fun c(x: Rgb) = Color(x.argb())
+            return QColors(
+                desk = c(p.desk), bg = c(p.bg), side = c(p.side), ink = c(p.ink), ink2 = c(p.ink2), mute = c(p.mute),
+                mark = c(p.mark), line = c(p.line), hover = c(p.hover), act = c(p.act), acc = c(p.acc), soft = c(p.soft),
+                code = c(p.code), err = c(p.err), dark = p.dark, button = c(p.button), buttonPressed = c(p.buttonHover),
+                onAcc = c(p.onAcc), linkLine = c(p.linkLine), linkLinePreview = c(p.linkLinePreview), sel = c(p.sel),
+                selEditor = c(p.selEditor), scrim = c(p.scrimSettings),
+            )
+        }
+    }
+}
 
-val LightQ = QColors(
-    desk = Color(0xFFDCD6CA), bg = Color(0xFFF8F5EF), side = Color(0xFFEFEBE3), ink = Color(0xFF2A2723),
-    ink2 = Color(0xFF5B554D), mute = Color(0xFF776F64), mark = Color(0xFFB2A999), line = Color(0xFFE1DBCF),
-    hover = Color(70, 50, 20).copy(alpha = .06f), act = Color(70, 50, 20).copy(alpha = .09f),
-    acc = Color(0xFF7A4FBA), soft = Color(0xFFEBE3F5), code = Color(0xFFEFE9DE), err = Color(0xFFB0432F), dark = false,
-)
-
-val DarkQ = QColors(
-    desk = Color(0xFF0F0E0D), bg = Color(0xFF1F1D1A), side = Color(0xFF181715), ink = Color(0xFFE9E3D8),
-    ink2 = Color(0xFFBDB5A7), mute = Color(0xFF948C7F), mark = Color(0xFF5F584E), line = Color(0xFF322E28),
-    hover = Color(255, 240, 210).copy(alpha = .05f), act = Color(255, 240, 210).copy(alpha = .08f),
-    acc = Color(0xFFB597E8), soft = Color(0xFF2F2839), code = Color(0xFF27241F), err = Color(0xFFE8907C), dark = true,
-)
+/** Paper and Ink, the palettes from applyTheme() in the prototype. */
+val LightQ = QColors.of(Themes.PAPER)
+val DarkQ = QColors.of(Themes.INK)
 
 val LocalQ = staticCompositionLocalOf { LightQ }
 
-/** Primary buttons and switches use this violet in both themes. */
-val Primary = Color(0xFF7D52BD)
-val PrimaryPressed = Color(0xFF6C44A8)
-
-/** The link underline and the text selection color from the prototype. */
-val LinkLine = Color(138, 95, 201).copy(alpha = .4f)
-val LinkLinePreview = Color(138, 95, 201).copy(alpha = .38f)
-val Selection = Color(138, 95, 201).copy(alpha = .26f)
-val Overlay = Color(40, 30, 15).copy(alpha = .22f)
-
-/** The prototype's overlay is too faint on the dark palette, so dark mode uses a deeper scrim. */
-fun overlay(c: QColors) = if (c.dark) Color.Black.copy(alpha = .45f) else Overlay
 val Shadow = Color(40, 28, 10)
 
 object QFonts {

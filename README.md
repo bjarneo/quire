@@ -30,7 +30,7 @@ Quire opens a folder and edits the Markdown files in it. There is no database, n
 - **Find anything.** `Ctrl+O` opens any note by a fuzzy name. `Ctrl+P` runs any command. `Ctrl+Shift+F` searches every note. Tags (`#idea`) get their own list.
 - **Keep folders tidy.** Make folders in the file tree, drag notes into them, and use the `+` on a folder to make a note there. To delete a folder, right-click it. The folder moves to `.trash` with its files. In the quick switcher, `Drafts/Idea` makes the note in `Drafts`.
 - **Focus.** `Ctrl+.` hides everything but the text, dims the other paragraphs and keeps the line you type near the middle.
-- **Look at home.** Light and dark themes, three editor fonts, and "Match system". On Omarchy, "Match system" takes the colours of your Omarchy theme.
+- **Look at home.** Pick a theme for light mode and one for dark mode from 12 themes, such as Nord, Gruvbox, Catppuccin, Tokyo Night, Rosé Pine and Solarized. Pick an accent colour, or type any hex value. "Match system" switches between your two themes. On Omarchy, your Omarchy theme is one of the choices.
 - **Work with AI tools.** A built-in MCP server lets Claude Desktop, Cursor and other MCP clients read and search your notes.
 
 <table>

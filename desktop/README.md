@@ -36,7 +36,9 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
 - On macOS the shortcuts use `⌘` in place of `Ctrl`.
-- On Omarchy, the "Match system" theme takes the colours of the current Omarchy theme and follows theme switches while Quire runs.
+- Has 12 themes in Settings, Appearance: 5 for light mode and 7 for dark mode. You pick one for each mode, and "Match system" switches between them.
+- Lets you pick the accent colour from 9 swatches, or type a `#rrggbb` value. An accent that is too dark to read on a dark theme gets lighter for text.
+- On Omarchy, offers the current Omarchy theme in both lists and follows theme switches while Quire runs. Without a pick, "Match system" uses the Omarchy theme.
 
 On first launch Quire writes a sample folder, Field Notes, to `~/Documents/Field Notes`. If that folder already exists, the sample goes to Quire's data folder instead. Settings and open tabs live in `~/.config/quire/state.json`, never in a notes folder.
 

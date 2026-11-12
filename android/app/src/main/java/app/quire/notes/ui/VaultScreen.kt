@@ -104,7 +104,7 @@ fun VaultScreen(vm: QuireViewModel) {
         ModalNavigationDrawer(
             drawerState = drawer,
             gesturesEnabled = drawer.isOpen,
-            scrimColor = overlay(c),
+            scrimColor = c.scrim,
             drawerContent = {
                 ModalDrawerSheet(
                     modifier = Modifier.width(300.dp).drawBehind {
@@ -484,7 +484,7 @@ private fun OutlineSheet(vm: QuireViewModel) {
         shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
         containerColor = c.bg,
         contentColor = c.ink,
-        scrimColor = overlay(c),
+        scrimColor = c.scrim,
         tonalElevation = 0.dp,
         modifier = Modifier.border(1.dp, c.line, RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
         dragHandle = {

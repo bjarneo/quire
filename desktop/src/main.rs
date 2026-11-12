@@ -132,3 +132,32 @@ pub(crate) mod scroll_tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[cfg(test)]
+mod theme_choice_tests {
+    /// Each mode uses its own pick, Paper and Ink are the defaults, and the accent recolours
+    /// the palette.
+    #[test]
+    fn each_mode_uses_its_own_theme() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-themes-{}", std::process::id()));
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let mut s = crate::app::init();
+        assert_eq!((s.theme_id(false), s.theme_id(true)), ("paper".to_string(), "ink".to_string()));
+        s.persist.settings.light_theme = Some("gruvbox-light".into());
+        s.persist.settings.dark_theme = Some("nord".into());
+        s.persist.settings.theme = "system".into();
+        assert!(std::ptr::eq(s.palette(true), crate::theme::theme_pal("nord", true)));
+        assert!(std::ptr::eq(s.palette(false), crate::theme::theme_pal("gruvbox-light", false)));
+        s.persist.settings.theme = "light".into();
+        assert!(!s.palette(true).dark, "Light mode ignores the system");
+        s.persist.settings.accent = "#1f8a80".into();
+        assert_eq!(format!("{:?}", s.palette(false).button), format!("{:?}", crate::theme::hex("#1f8a80")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

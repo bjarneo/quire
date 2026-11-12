@@ -270,13 +270,35 @@ impl App {
         self.palette(system_dark).dark
     }
 
-    /// The colours to draw with. "Match system" on Omarchy takes the Omarchy theme's colours.
-    pub fn palette(&self, system_dark: bool) -> &'static crate::theme::Pal {
+    /// Light or dark mode now. On Omarchy, "Match system" follows the Omarchy theme's mode.
+    pub fn dark_mode(&self, system_dark: bool) -> bool {
         match self.settings().theme.as_str() {
-            "dark" => crate::theme::pal(true),
-            "system" => crate::theme::omarchy().unwrap_or_else(|| crate::theme::pal(system_dark)),
-            _ => crate::theme::pal(false),
+            "dark" => true,
+            "system" => crate::theme::omarchy().map_or(system_dark, |o| o.dark),
+            _ => false,
         }
+    }
+
+    /// The theme picked for dark or light mode. Without a pick it is Paper or Ink, or the
+    /// Omarchy theme under "Match system" when its mode matches.
+    pub fn theme_id(&self, dark: bool) -> String {
+        let set = self.settings();
+        if let Some(id) = if dark { &set.dark_theme } else { &set.light_theme } {
+            return id.clone();
+        }
+        if set.theme == "system" && crate::theme::omarchy().is_some_and(|o| o.dark == dark) {
+            "omarchy".into()
+        } else if dark {
+            "ink".into()
+        } else {
+            "paper".into()
+        }
+    }
+
+    /// The colours to draw with: the theme of the current mode, with the accent from the settings.
+    pub fn palette(&self, system_dark: bool) -> &'static crate::theme::Pal {
+        let dark = self.dark_mode(system_dark);
+        crate::theme::themed(&self.theme_id(dark), dark, &self.settings().accent)
     }
 
     pub(crate) fn rebuild_names_pub(&mut self) {

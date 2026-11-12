@@ -272,7 +272,7 @@ private fun ListRow(
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (item.done) QIcon(QIcons.CHECK, 10f, 9.dp, 1.8f, Color.White)
+                        if (item.done) QIcon(QIcons.CHECK, 10f, 9.dp, 1.8f, c.onAcc)
                     }
                 }
             }

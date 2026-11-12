@@ -134,11 +134,166 @@ fn appearance(v: V) -> El {
     let set = v.s.settings();
     let theme_seg = |id: &'static str, l: &str| seg(l, set.theme == id, move |s, _| s.set_theme(id));
     let prev = |id: &'static str, l: &str| seg(l, set.preview_font == id, move |s, _| s.settings_mut().preview_font = id.into());
+    let mode_desc = if theme::omarchy().is_some() {
+        "Match system follows the light or dark mode of your Omarchy theme."
+    } else {
+        "Match system follows the light or dark setting of your OS."
+    };
     col()
         .key("appearance")
         .w_full()
-        .child(row_(v, "theme", "Theme", Some(if theme::omarchy().is_some() { "Match system follows your Omarchy theme, colours included." } else { "Match system follows your OS setting." }), settings_seg(v.p, "theme-seg", vec![theme_seg("light", "Light"), theme_seg("dark", "Dark"), theme_seg("system", "Match system")])))
+        .child(row_(v, "theme", "Mode", Some(mode_desc), settings_seg(v.p, "theme-seg", vec![theme_seg("light", "Light"), theme_seg("dark", "Dark"), theme_seg("system", "Match system")])))
+        .child(theme_grid(v, false))
+        .child(theme_grid(v, true))
+        .child(accent_block(v))
         .child(row_(v, "prev-font", "Preview typeface", Some("Used when reading a note in preview."), settings_seg(v.p, "prev-seg", vec![prev("serif", "Serif"), prev("sans", "Sans")])))
+}
+
+/// The themes for light or dark mode as cards, each with a small picture of its colours.
+fn theme_grid(v: V, dark: bool) -> El {
+    let p = v.p;
+    let s = v.s;
+    let picked = s.theme_id(dark);
+    let accent = s.settings().accent.clone();
+    let mut items: Vec<(&'static str, &'static str)> = theme::THEMES.iter().filter(|t| t.dark == dark).map(|t| (t.id, t.name)).collect();
+    if theme::omarchy().is_some() {
+        items.push(("omarchy", "Omarchy"));
+    }
+    let cols = if body_width(v) >= 640.0 { 4 } else { 3 };
+    let cw = ((body_width(v) - 10.0 * (cols as f32 - 1.0)) / cols as f32).floor();
+    let slot = if dark { "dark" } else { "light" };
+    let mut grid = col().key(format!("{slot}-themes")).w_full().gap(10.0).mt(14.0);
+    for chunk in items.chunks(cols) {
+        let mut r = row().w_full().gap(10.0);
+        for &(id, name) in chunk {
+            let tp = theme::themed(id, dark, &accent);
+            let on = picked == id;
+            let picture = row()
+                .key("picture")
+                .w_full()
+                .h(54.0)
+                .radius(6.0)
+                .fill(tp.bg)
+                .border(1.0, tp.line)
+                .border_layout()
+                .clip_rounded(6.0)
+                .child(el().w(20.0).h_full().fill(tp.side))
+                .child(
+                    col()
+                        .grow(1.0)
+                        .min_w(0.0)
+                        .px(10.0)
+                        .pt(11.0)
+                        .gap(6.0)
+                        .child(el().w(44.0).h(5.0).radius(2.5).fill(tp.ink))
+                        .child(el().w(62.0).h(4.0).radius(2.0).fill(tp.mute))
+                        .child(row().gap(4.0).child(el().w(20.0).h(4.0).radius(2.0).fill(tp.acc)).child(el().w(28.0).h(4.0).radius(2.0).fill(tp.mark))),
+                );
+            let mut card = col()
+                .key(format!("theme-{slot}-{id}"))
+                .w(cw)
+                .gap(8.0)
+                .padding(6.0)
+                .pb(8.0)
+                .radius(9.0)
+                .border(1.0, if on { p.acc } else { Color::TRANSPARENT })
+                .border_layout()
+                .hover(p.hover)
+                .role("radio")
+                .checked(on)
+                .label(name)
+                .on_press(move |s: &mut App| {
+                    let set = s.settings_mut();
+                    if dark {
+                        set.dark_theme = Some(id.into());
+                    } else {
+                        set.light_theme = Some(id.into());
+                    }
+                    // A pick in the other mode's list switches to that mode, so the change shows.
+                    if set.theme != "system" {
+                        set.theme = if dark { "dark".into() } else { "light".into() };
+                    }
+                })
+                .child(picture)
+                .child(label(name, sans(12.5, if on { 500.0 } else { 400.0 }), if on { p.ink } else { p.ink2 }).truncate().px(2.0));
+            if on {
+                card = card.box_shadow(rune::Shadow { x: 0.0, y: 0.0, blur: 0.0, spread: 1.0, color: p.acc, inset: false });
+            }
+            r = r.child(card);
+        }
+        grid = grid.child(r);
+    }
+    let (title, desc) = if dark { ("Dark theme", "Used in dark mode.") } else { ("Light theme", "Used in light mode.") };
+    block(v, &format!("{slot}-theme"), title, Some(desc)).child(grid)
+}
+
+/// The accent: the theme's own, a set of swatches, or any `#rrggbb` value.
+fn accent_block(v: V) -> El {
+    let p = v.p;
+    let s = v.s;
+    let current = s.settings().accent.trim().to_lowercase();
+    let own = theme::theme_pal(&s.theme_id(v.dark), v.dark).acc;
+    let set_accent = |s: &mut App, hex: &str| {
+        s.settings_mut().accent = hex.to_string();
+        if let Some(e) = s.fields.get_mut("accent-hex") {
+            e.replace_text(hex.to_string());
+            let n = hex.len();
+            e.set_selection(n, n);
+        }
+    };
+    let mut swatches = row().key("swatches").gap(8.0).center_y().wrap();
+    for &(hex, name) in theme::ACCENTS {
+        let on = current == hex;
+        if hex.is_empty() {
+            swatches = swatches.child(
+                row()
+                    .key("accent-theme")
+                    .h(28.0)
+                    .pl(8.0)
+                    .pr(11.0)
+                    .gap(7.0)
+                    .center_y()
+                    .radius(14.0)
+                    .border(1.0, if on { p.acc } else { p.line })
+                    .border_layout()
+                    .hover(p.hover)
+                    .role("radio")
+                    .checked(on)
+                    .label(name)
+                    .help(name)
+                    .on_press(move |s: &mut App| set_accent(s, ""))
+                    .child(el().size(14.0, 14.0).radius(7.0).fill(own))
+                    .child(label("Theme", sans(12.5, if on { 500.0 } else { 400.0 }), if on { p.ink } else { p.ink2 })),
+            );
+            continue;
+        }
+        let mut dot = el()
+            .key(format!("accent-{}", name.to_lowercase()))
+            .size(24.0, 24.0)
+            .radius(12.0)
+            .fill(theme::hex(hex))
+            .role("radio")
+            .checked(on)
+            .label(name)
+            .help(format!("{name} {hex}"))
+            .on_press(move |s: &mut App| set_accent(s, hex));
+        if on {
+            dot = dot.box_shadow(rune::Shadow { x: 0.0, y: 0.0, blur: 0.0, spread: 4.0, color: p.ink2, inset: false }).box_shadow(rune::Shadow { x: 0.0, y: 0.0, blur: 0.0, spread: 2.0, color: p.bg, inset: false });
+        }
+        swatches = swatches.child(dot);
+    }
+    let typed = s.fields.get("accent-hex").map_or_else(|| current.clone(), |e| e.text.clone());
+    let bad = !typed.trim().is_empty() && theme::parse_accent(&typed).is_none();
+    let field = super::settings_sync::text_box(v, "accent-hex", current.clone(), "#7a4fba", false, bad, 120.0, |s, t| {
+        let t = t.trim().to_lowercase();
+        if t.is_empty() {
+            s.settings_mut().accent = String::new();
+        } else if theme::parse_accent(&t).is_some() {
+            s.settings_mut().accent = if t.starts_with('#') { t } else { format!("#{t}") };
+        }
+    });
+    let custom = row().key("accent-custom").gap(10.0).center_y().mt(12.0).child(label("Custom", sans(12.5, 400.0), p.ink2)).child(el().w(120.0).child(field));
+    block(v, "accent", "Accent colour", Some("Links, tags, buttons and the selection use it.")).child(swatches.mt(14.0)).child(custom)
 }
 
 fn editor(v: V) -> El {

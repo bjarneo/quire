@@ -13,7 +13,14 @@ fn yes() -> bool {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
+    /// light, dark or system.
     pub theme: String,
+    /// The theme for light mode. None picks Paper, or Omarchy's theme under "Match system".
+    pub light_theme: Option<String>,
+    /// The theme for dark mode. None picks Ink, or Omarchy's theme under "Match system".
+    pub dark_theme: Option<String>,
+    /// `#rrggbb`, or empty for the theme's own accent.
+    pub accent: String,
     pub font: String,
     pub size: u32,
     pub width: String,
@@ -32,6 +39,9 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             theme: "light".into(),
+            light_theme: None,
+            dark_theme: None,
+            accent: String::new(),
             font: "plex".into(),
             size: 16,
             width: "readable".into(),

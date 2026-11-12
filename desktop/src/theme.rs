@@ -329,3 +329,169 @@ pub fn reload_omarchy() -> bool {
 pub fn omarchy() -> Option<&'static Pal> {
     *OMARCHY.read().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
+
+/// A built-in theme. Paper and Ink are the design's own palettes. The others take the main
+/// colours of well-known editor themes, and the remaining tones mix from those.
+pub struct ThemeDef {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub dark: bool,
+    /// Background, sidebar, ink, second ink, muted text, faint marks, accent, error.
+    pub colors: [&'static str; 8],
+}
+
+pub const THEMES: &[ThemeDef] = &[
+    ThemeDef { id: "paper", name: "Paper", dark: false, colors: ["#f8f5ef", "#efebe3", "#2a2723", "#5b554d", "#776f64", "#b2a999", "#7a4fba", "#b0432f"] },
+    ThemeDef { id: "solarized-light", name: "Solarized Light", dark: false, colors: ["#fdf6e3", "#eee8d5", "#073642", "#586e75", "#657b83", "#93a1a1", "#268bd2", "#dc322f"] },
+    ThemeDef { id: "gruvbox-light", name: "Gruvbox Light", dark: false, colors: ["#fbf1c7", "#f2e5bc", "#3c3836", "#504945", "#7c6f64", "#a89984", "#af3a03", "#9d0006"] },
+    ThemeDef { id: "catppuccin-latte", name: "Catppuccin Latte", dark: false, colors: ["#eff1f5", "#e6e9ef", "#4c4f69", "#5c5f77", "#6c6f85", "#9ca0b0", "#8839ef", "#d20f39"] },
+    ThemeDef { id: "rose-pine-dawn", name: "Rosé Pine Dawn", dark: false, colors: ["#faf4ed", "#f2e9e1", "#575279", "#686388", "#797593", "#9893a5", "#907aa9", "#b4637a"] },
+    ThemeDef { id: "ink", name: "Ink", dark: true, colors: ["#1f1d1a", "#181715", "#e9e3d8", "#bdb5a7", "#948c7f", "#5f584e", "#b597e8", "#e8907c"] },
+    ThemeDef { id: "nord", name: "Nord", dark: true, colors: ["#2e3440", "#272c36", "#eceff4", "#d8dee9", "#9aa3b5", "#4c566a", "#88c0d0", "#bf616a"] },
+    ThemeDef { id: "gruvbox-dark", name: "Gruvbox Dark", dark: true, colors: ["#282828", "#1d2021", "#ebdbb2", "#d5c4a1", "#a89984", "#665c54", "#fe8019", "#fb4934"] },
+    ThemeDef { id: "catppuccin-mocha", name: "Catppuccin Mocha", dark: true, colors: ["#1e1e2e", "#181825", "#cdd6f4", "#bac2de", "#9399b2", "#585b70", "#cba6f7", "#f38ba8"] },
+    ThemeDef { id: "tokyo-night", name: "Tokyo Night", dark: true, colors: ["#1a1b26", "#16161e", "#c0caf5", "#a9b1d6", "#7a7fa0", "#414868", "#7aa2f7", "#f7768e"] },
+    ThemeDef { id: "rose-pine", name: "Rosé Pine", dark: true, colors: ["#1f1d2e", "#191724", "#e0def4", "#bcb9d6", "#908caa", "#6e6a86", "#c4a7e7", "#eb6f92"] },
+    ThemeDef { id: "solarized-dark", name: "Solarized Dark", dark: true, colors: ["#002b36", "#00232c", "#eee8d5", "#93a1a1", "#839496", "#586e75", "#268bd2", "#dc322f"] },
+];
+
+/// The accents the settings offer, with their names. The first one keeps the theme's own.
+pub const ACCENTS: &[(&str, &str)] = &[
+    ("", "Theme accent"),
+    ("#7a4fba", "Violet"),
+    ("#2f6fdf", "Blue"),
+    ("#1f8a80", "Teal"),
+    ("#3f8f3a", "Green"),
+    ("#c27c0e", "Amber"),
+    ("#d4622a", "Orange"),
+    ("#c8414b", "Red"),
+    ("#c2417f", "Pink"),
+    ("#6b6b6b", "Graphite"),
+];
+
+/// A `#rgb` or `#rrggbb` colour, or None.
+pub fn parse_accent(s: &str) -> Option<Color> {
+    let t = s.trim();
+    let t = if t.starts_with('#') { t.to_string() } else { format!("#{t}") };
+    if !matches!(t.len(), 4 | 7) || !t[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    rune::color::hex(&t)
+}
+
+/// `c` moved toward white on a dark background, or toward black on a light one, until text
+/// in it reads on `bg` (a contrast of at least `min`).
+fn readable(c: Color, bg: Color, dark: bool, min: f32) -> Color {
+    let toward = if dark { Color::WHITE } else { Color::BLACK };
+    let mut out = c;
+    let mut t = 0.0;
+    while contrast(out, bg) < min && t < 1.0 {
+        t += 0.05;
+        out = c.mix(toward, t);
+    }
+    out
+}
+
+/// A palette with another accent: links, tags, buttons, the selection and the soft fills.
+pub fn with_accent(base: &Pal, c: Color) -> Pal {
+    let mut p = *base;
+    p.acc = readable(c, base.bg, base.dark, 3.0);
+    p.button = c;
+    p.button_hover = c.mix(Color::BLACK, 0.14);
+    p.soft = base.bg.mix(c, if base.dark { 0.2 } else { 0.12 });
+    p.link_line = c.alpha(0.4);
+    p.on_acc = [Color::WHITE, Color::BLACK].into_iter().max_by(|a, b| contrast(*a, c).total_cmp(&contrast(*b, c))).unwrap_or(Color::WHITE);
+    p.sel = c.alpha(0.22);
+    p.sel_editor = c.alpha(0.26);
+    p
+}
+
+fn build(t: &ThemeDef) -> Pal {
+    let [bg, side, ink, ink2, mute, mark, acc, err] = t.colors.map(hex);
+    let dark = t.dark;
+    let hover_a = if dark { 0.05 } else { 0.06 };
+    let base = Pal {
+        dark,
+        desk: side,
+        bg,
+        side,
+        ink,
+        ink2,
+        mute,
+        mark,
+        line: bg.mix(ink, if dark { 0.1 } else { 0.11 }),
+        hover: ink.alpha(hover_a),
+        act: ink.alpha(hover_a + 0.03),
+        acc,
+        soft: bg,
+        code: bg.mix(ink, 0.045),
+        err,
+        button: acc,
+        button_hover: acc,
+        white: Color::WHITE,
+        link_line: acc,
+        on_acc: Color::WHITE,
+        sel: acc,
+        sel_editor: acc,
+        scrim_palette: if dark { Color::BLACK.alpha(0.3) } else { rgba("#281e0f", 0.16) },
+        scrim_settings: if dark { Color::BLACK.alpha(0.38) } else { rgba("#281e0f", 0.22) },
+    };
+    with_accent(&base, acc)
+}
+
+/// The palette of a theme id. Paper and Ink are the design's palettes, unchanged. `omarchy`
+/// is the current Omarchy theme. An unknown id gives Paper or Ink.
+pub fn theme_pal(id: &str, dark: bool) -> &'static Pal {
+    static BUILT: OnceLock<Vec<Pal>> = OnceLock::new();
+    match id {
+        "paper" => pal(false),
+        "ink" => pal(true),
+        "omarchy" => omarchy().unwrap_or_else(|| pal(dark)),
+        _ => {
+            let built = BUILT.get_or_init(|| THEMES.iter().map(build).collect());
+            THEMES.iter().position(|t| t.id == id).map_or_else(|| pal(dark), |i| &built[i])
+        }
+    }
+}
+
+/// `theme_pal` with the accent from the settings, if one is set. Each new pair is made once.
+pub fn themed(id: &str, dark: bool, accent: &str) -> &'static Pal {
+    let base = theme_pal(id, dark);
+    let Some(c) = parse_accent(accent).filter(|_| !accent.trim().is_empty()) else { return base };
+    type Cache = std::collections::HashMap<(String, String, bool), &'static Pal>;
+    static CACHE: std::sync::Mutex<Option<Cache>> = std::sync::Mutex::new(None);
+    let mut g = CACHE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let map = g.get_or_insert_with(Default::default);
+    // The Omarchy palette can change, so its entry keys on its colours too.
+    let key = (format!("{id}{}", if id == "omarchy" { format!("{:?}", base.bg) } else { String::new() }), accent.trim().to_lowercase(), dark);
+    map.entry(key).or_insert_with(|| Box::leak(Box::new(with_accent(base, c))))
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+
+    #[test]
+    fn every_theme_reads() {
+        for t in THEMES {
+            let p = theme_pal(t.id, t.dark);
+            assert_eq!(p.dark, t.dark, "{}", t.id);
+            eprintln!("{:18} ink {:5.2} ink2 {:5.2} mute {:5.2} accent {:5.2}", t.id, contrast(p.ink, p.bg), contrast(p.ink2, p.bg), contrast(p.mute, p.bg), contrast(p.acc, p.bg));
+            // WCAG AA: 4.5 for body text. Muted text is for labels and hints.
+            assert!(contrast(p.ink, p.bg) >= 4.5, "{} ink {}", t.id, contrast(p.ink, p.bg));
+            assert!(contrast(p.ink2, p.bg) >= 4.5, "{} ink2 {}", t.id, contrast(p.ink2, p.bg));
+            assert!(contrast(p.mute, p.bg) >= 3.0, "{} mute {}", t.id, contrast(p.mute, p.bg));
+            assert!(contrast(p.acc, p.bg) >= 3.0, "{} accent {}", t.id, contrast(p.acc, p.bg));
+        }
+    }
+
+    #[test]
+    fn a_dark_accent_gets_lighter_on_a_dark_theme() {
+        let p = themed("ink", true, "#3a1f6e");
+        assert!(contrast(p.acc, p.bg) >= 3.0);
+        assert_eq!(format!("{:?}", p.button), format!("{:?}", hex("#3a1f6e")));
+        assert!(parse_accent("#abc").is_some() && parse_accent("12ab9f").is_some());
+        assert!(parse_accent("#12ab9").is_none() && parse_accent("blue").is_none());
+        assert!(std::ptr::eq(themed("nord", true, ""), theme_pal("nord", true)));
+    }
+}

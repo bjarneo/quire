@@ -180,7 +180,7 @@ fun Toggle(on: Boolean, onClick: () -> Unit) {
         Modifier
             .size(36.dp, 20.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (on) Primary else c.mark)
+            .background(if (on) c.button else c.mark)
             .tap(RoundedCornerShape(10.dp), pressed = Color.Transparent, onClick = onClick)
             .padding(2.dp),
         contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
@@ -197,13 +197,13 @@ fun PrimaryButton(label: String, modifier: Modifier = Modifier, height: Dp = 32.
         modifier
             .height(height)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (pressed) PrimaryPressed else Primary)
+            .background(if (pressed) LocalQ.current.buttonPressed else LocalQ.current.button)
             .combinedClickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(horizontal = hPad),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Txt(label, size, Color.White, weight = FontWeight.W500, maxLines = 1)
+        Txt(label, size, LocalQ.current.onAcc, weight = FontWeight.W500, maxLines = 1)
         trailing?.invoke(this)
     }
 }

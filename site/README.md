@@ -89,7 +89,7 @@ Keep the desktop screenshots at 1280 x 800. If you use another size, keep the 16
 | `assets/quick-switcher.png` | The quick switcher open on `Ctrl+O`, with a short query and fuzzy matches. Light theme. | `desktop/ref/switcher-query.png` |
 | `assets/command-palette.png` | The command palette open on `Ctrl+P`. Light theme. | `desktop/ref/commands.png` |
 | `assets/focus-mode.png` | Focus mode in the light theme. The page fades the edges of this image into the paper colour `#f8f5ef`, so keep the light theme. The page crops part of the empty space above the text. | `desktop/ref/focus.png` |
-| `assets/settings-editor.png` | **Settings > Editor**: the three editor fonts, the font size and the line width. Light theme. | `desktop/ref/set-editor.png` |
+| `assets/settings-appearance.png` | **Settings > Appearance**: the mode switch and the light theme cards, with Paper selected. | A headless render at `--scale 2`, resized to 1280x800 with `magick <2x>.png -filter Lanczos -resize 1280x800 -strip` |
 | `assets/settings-mcp.png` | **Settings > MCP**: the server switched on, the stdio transport, read-only access and the tool list. Light theme. | `desktop/ref/set-mcp-on.png` |
 | `assets/settings-sync.png` | **Settings > Sync & backup**: the grid of storage backends, with Hetzner selected and its region, bucket and remote folder fields. Light theme. The "backend" view of the sync section uses it. | `settings-sync.png`, rendered at 2x |
 | `assets/settings-sync-2.png` | **Settings > Sync & backup**, lower part: the access keys, the endpoint, When to sync, Encrypt before upload, Test connection, Sync now and the status "Connected. Last synced 2m ago." Light theme. The "options" view of the sync section uses it. | `settings-sync-2.png`, rendered at 2x |
