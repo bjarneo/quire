@@ -331,17 +331,23 @@ fn new_folder_row(v: V, depth: usize, edit: &rune::TextEdit) -> El {
         )
 }
 
-/// The tree's menu, at the pointer: new notes and folders, and rename or delete for a note.
+/// The tree's menu, at the pointer: new notes and folders, rename or delete for a note, and
+/// delete for a folder.
 pub fn tree_menu(v: V) -> El {
     let p = v.p;
     let Some(m) = &v.s.tree_menu else { return el() };
+    if let (MenuOn::Folder(f), true) = (&m.on, m.confirm) {
+        return confirm_delete_folder(v, f, m.x, m.y);
+    }
     type Run = Box<dyn Fn(&mut App, &mut rune::Tx)>;
     let mut items: Vec<(&str, Run)> = Vec::new();
     match m.on.clone() {
         MenuOn::Folder(f) => {
-            let f2 = f.clone();
+            let (f2, f3) = (f.clone(), f.clone());
+            let (mx, my) = (m.x, m.y);
             items.push(("New note here", Box::new(move |s, tx| s.new_note_in(Some(&f), None, tx))));
             items.push(("New folder here", Box::new(move |s, tx| s.start_new_folder(&f2, tx))));
+            items.push(("Delete folder", Box::new(move |s, _| s.ask_delete_folder(&f3, mx, my))));
         }
         MenuOn::Note(n) => {
             let (n1, n2, n3) = (n.clone(), n.clone(), n.clone());
@@ -392,6 +398,48 @@ pub fn tree_menu(v: V) -> El {
                 .child(label(t, sans(13.0, 400.0), p.ink)),
         );
     }
+    el().key("tree-menu-layer").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).paint_order(55).child(panel)
+}
+
+/// The tree menu's second step for a folder with notes: what moves to the trash, and two buttons.
+fn confirm_delete_folder(v: V, folder: &str, mx: f32, my: f32) -> El {
+    let p = v.p;
+    let n = v.s.notes_in(folder).len();
+    let name = folder.rsplit('/').next().unwrap_or(folder);
+    let msg = format!("Move {name} and its {n} {} to the trash?", if n == 1 { "note" } else { "notes" });
+    let w = 260.0;
+    let h = 104.0;
+    let x = mx.min(v.vw - w - 8.0).max(8.0);
+    let y = my.min(v.vh - h - 8.0).max(8.0);
+    let [a, b] = theme::menu_shadows();
+    let f = folder.to_string();
+    let button = |key: &str, t: &str, color: Color| {
+        row().key(key).h(30.0).px(12.0).center_y().radius(6.0).hover(p.hover).role("button").label(t).child(label(t, sans(13.0, 500.0), color))
+    };
+    let panel = col()
+        .key("tree-menu")
+        .absolute(x, y)
+        .w(w)
+        .padding(12.0)
+        .gap(10.0)
+        .radius(9.0)
+        .fill(p.bg)
+        .box_shadow(a)
+        .box_shadow(b)
+        .role("alertdialog")
+        .label(msg.clone())
+        .modal(true, |s: &mut App| s.tree_menu = None)
+        .child(label(msg, sans(13.0, 400.0).lh(19.0), p.ink).wrap())
+        .child(
+            row()
+                .gap(4.0)
+                .child(el().grow(1.0))
+                .child(button("tm-cancel", "Cancel", p.ink2).on_press(|s: &mut App| s.tree_menu = None))
+                .child(button("tm-delete", "Delete", p.err).on_press(move |s: &mut App| {
+                    s.tree_menu = None;
+                    s.delete_folder(&f);
+                })),
+        );
     el().key("tree-menu-layer").pin(Some(0.0), Some(0.0), Some(0.0), Some(0.0)).paint_order(55).child(panel)
 }
 

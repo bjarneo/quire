@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Sync talks to the object store that the person picks in the settings. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- A self-hosted S3 server on the local network can use plain http, as on the desktop. -->
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

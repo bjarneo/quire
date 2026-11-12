@@ -17,14 +17,12 @@ pub fn body(v: V) -> El {
     let p = v.p;
     let focus = v.focus();
     let left = v.left_visible();
-    let mut sheet = col()
-        .key("sheet")
-        .grow(1.0)
-        .min_w(0.0)
-        .min_h(0.0)
-        .fill(p.bg)
-        .clip_corners(if left { [10.0, 0.0, 0.0, 0.0] } else { [0.0; 4] })
-        .corners(if left { [10.0, 0.0, 0.0, 0.0] } else { [0.0; 4] });
+    // Under an active first tab the corner is square, so the tab's left border runs straight
+    // down into the sheet's.
+    let first = v.s.tabs.iter().find(|t| v.s.files().contains_key(*t));
+    let round = left && (focus || first.is_none() || first != v.s.active.as_ref());
+    let corner = if round { [10.0, 0.0, 0.0, 0.0] } else { [0.0; 4] };
+    let mut sheet = col().key("sheet").grow(1.0).min_w(0.0).min_h(0.0).fill(p.bg).clip_corners(corner).corners(corner);
     let top = if focus { 0.0 } else { 1.0 };
     let side = if left { 1.0 } else { 0.0 };
     if top + side > 0.0 {

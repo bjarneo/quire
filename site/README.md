@@ -91,6 +91,8 @@ Keep the desktop screenshots at 1280 x 800. If you use another size, keep the 16
 | `assets/focus-mode.png` | Focus mode in the light theme. The page fades the edges of this image into the paper colour `#f8f5ef`, so keep the light theme. The page crops part of the empty space above the text. | `desktop/ref/focus.png` |
 | `assets/settings-editor.png` | **Settings > Editor**: the three editor fonts, the font size and the line width. Light theme. | `desktop/ref/set-editor.png` |
 | `assets/settings-mcp.png` | **Settings > MCP**: the server switched on, the stdio transport, read-only access and the tool list. Light theme. | `desktop/ref/set-mcp-on.png` |
+| `assets/settings-sync.png` | **Settings > Sync & backup**: the grid of storage backends, with Hetzner selected and its region, bucket and remote folder fields. Light theme. The "backend" view of the sync section uses it. | `settings-sync.png`, rendered at 2x |
+| `assets/settings-sync-2.png` | **Settings > Sync & backup**, lower part: the access keys, the endpoint, When to sync, Encrypt before upload, Test connection, Sync now and the status "Connected. Last synced 2m ago." Light theme. The "options" view of the sync section uses it. | `settings-sync-2.png`, rendered at 2x |
 | `assets/welcome.png` | The welcome screen with **Create a new folder** and **Open a folder**. Light theme. | `desktop/ref/welcome.png` |
 | `assets/og.png` | The social image, 1200 x 630. It shows the lockup, the tagline and `editor-light.png`, like the hero. | Made with Chromium and ImageMagick. See below. |
 | `assets/phone-editor.png` | Android: a note in source mode. | Missing. See "Phone screenshots". |
@@ -104,7 +106,13 @@ Some figures zoom into one part of their screenshot, so the text stays readable.
 
 After you replace a screenshot, check that each zoom still frames the correct part of the window.
 
-The screenshots come from the desktop app, rendered headless at 2x and scaled to 1280x800. The settings list shows **Sync & backup**: the app has that settings form, but it does not upload anything yet, so the page does not claim sync.
+The screenshots come from the desktop app, rendered headless at 2x and scaled to 1280x800. To scale a 2x render the same way as the other screenshots, run this command:
+
+```sh
+magick settings-sync@2x.png -filter Lanczos -resize 1280x800 -strip site/assets/settings-sync.png
+```
+
+The sync section describes sync in the desktop app and the Android app. Both apps use the format in `SYNC.md`.
 
 ### Make the social image again
 

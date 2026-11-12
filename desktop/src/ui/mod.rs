@@ -6,7 +6,7 @@ mod palette;
 mod preview;
 mod settings;
 mod settings_mcp;
-mod settings_sync;
+pub mod settings_sync;
 mod sidebar;
 mod titlebar;
 mod welcome;

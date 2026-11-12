@@ -285,6 +285,11 @@ strong {
   color: var(--ink);
 }
 
+/* Keep a term with hyphens, such as AES-256-GCM, on one line. */
+.nowrap {
+  white-space: nowrap;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -990,12 +995,14 @@ h3 {
 }
 
 /* MCP */
-.mcp-grid {
+.mcp-grid,
+.sync-grid {
   display: grid;
   gap: clamp(40px, 6vw, 64px);
 }
 @media (min-width: 1024px) {
-  .mcp-grid {
+  .mcp-grid,
+  .sync-grid {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     column-gap: 64px;
     align-items: start;
@@ -1063,6 +1070,68 @@ h3 {
   background: var(--paper);
   border: 1px solid var(--line);
   color: var(--ink2);
+}
+
+/* Sync: a list of facts in rows, like the app's settings. */
+.facts {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.facts > div:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.facts dt {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 2;
+  color: var(--mute);
+}
+.facts dd {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+@media (max-width: 480px) {
+  .facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Line the first row up with the top of the screenshot, under the switch. */
+@media (min-width: 1024px) {
+  .sync-grid .facts {
+    margin-top: 48px;
+  }
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chips li {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: nowrap;
 }
 
 /* Shortcuts */

@@ -113,5 +113,22 @@ pub fn status(v: V) -> El {
             r = r.child(text(format!("{}{verb}{t}”", mod_click())).font(style).color(p.acc).truncate().shrink().min_w(0.0));
         }
     }
-    r.child(el().grow(1.0)).child(label(word_label, style, p.mute)).child(label(read, style, p.mute))
+    r = r.child(el().grow(1.0)).child(label(word_label, style, p.mute)).child(label(read, style, p.mute));
+    if let Some((lbl, busy, failed)) = s.sync_label() {
+        let dot = if failed { p.err } else if busy { p.acc } else { p.mark };
+        let mut sync = row()
+            .key("sync-state")
+            .role("button")
+            .on_press(|s: &mut App| {
+                s.open_settings();
+                s.set_sec = crate::app::Sec::Sync;
+            })
+            .gap(6.0)
+            .center_y().child(el().size(6.0, 6.0).radius(3.0).fill(dot)).child(label(lbl, style, if failed { p.err } else { p.mute }));
+        if let Some(e) = &s.sync.error {
+            sync = sync.help(e.clone());
+        }
+        r = r.child(sync);
+    }
+    r
 }

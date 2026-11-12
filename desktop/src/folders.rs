@@ -32,6 +32,8 @@ pub struct TreeMenu {
     pub x: f32,
     pub y: f32,
     pub on: MenuOn,
+    /// The menu asks before it deletes the folder it was opened on.
+    pub confirm: bool,
 }
 
 /// A folder being named in the tree.
@@ -157,6 +159,7 @@ impl App {
             self.expanded.insert(nf.parent);
         }
         self.persist_later();
+        self.sync_after_save();
     }
 
     /// Moves a note into `folder` (`""` is the root), keeping its tab, caret and history.
@@ -215,6 +218,7 @@ impl App {
         }
         self.rebuild_names_pub();
         self.persist_later();
+        self.sync_after_save();
         let _ = tx;
     }
 
@@ -259,8 +263,65 @@ impl App {
     }
 
     pub fn open_tree_menu(&mut self, on: MenuOn, x: f32, y: f32) {
-        self.tree_menu = Some(TreeMenu { x, y, on });
+        self.tree_menu = Some(TreeMenu { x, y, on, confirm: false });
         self.vault_menu = false;
+    }
+
+    /// The notes inside `folder`, its subfolders included.
+    pub fn notes_in(&self, folder: &str) -> Vec<String> {
+        let pre = format!("{folder}/");
+        self.files().keys().filter(|p| p.starts_with(&pre)).cloned().collect()
+    }
+
+    /// Deletes a folder from the menu: an empty folder goes at once, and a folder with notes
+    /// asks first.
+    pub fn ask_delete_folder(&mut self, folder: &str, x: f32, y: f32) {
+        if self.notes_in(folder).is_empty() {
+            self.tree_menu = None;
+            self.delete_folder(folder);
+        } else {
+            self.tree_menu = Some(TreeMenu { x, y, on: MenuOn::Folder(folder.to_string()), confirm: true });
+        }
+    }
+
+    /// Moves a folder, with every file in it, to `.trash` in the notes folder. Unsaved notes
+    /// go to disk first, so the trash holds their last text.
+    pub fn delete_folder(&mut self, folder: &str) {
+        self.remove_folder(folder);
+        self.sync_after_save();
+    }
+
+    /// `delete_folder` without the sync after it, for a delete that came from a sync.
+    pub(crate) fn remove_folder(&mut self, folder: &str) {
+        if folder.is_empty() {
+            return;
+        }
+        let pre = format!("{folder}/");
+        let inside = |p: &str| p == folder || p.starts_with(&pre);
+        self.flush_notes();
+        let Some(v) = &mut self.vault else { return };
+        let root = v.path.clone();
+        let gone: Vec<String> = v.files.keys().filter(|p| inside(p)).cloned().collect();
+        for p in &gone {
+            v.files.remove(p);
+            v.born.remove(p);
+        }
+        v.folders.retain(|f| !inside(f));
+        self.writer.send(Op::DeleteFolder { root, rel: folder.to_string() });
+        for p in &gone {
+            self.close_tab(p);
+            self.edits.remove(p);
+        }
+        self.recent.retain(|p| !inside(p));
+        self.expanded.retain(|p| !inside(p));
+        if self.new_folder.as_ref().is_some_and(|nf| inside(&nf.parent)) {
+            self.new_folder = None;
+        }
+        if self.active.as_deref().is_some_and(inside) {
+            self.active = None;
+        }
+        self.rebuild_names_pub();
+        self.persist_later();
     }
 
     /// Moves a note to `.trash` in the folder, open or not.

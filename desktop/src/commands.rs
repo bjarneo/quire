@@ -53,7 +53,13 @@ pub fn commands(s: &App, dark: bool) -> Vec<Cmd> {
             }
         }));
     }
+    if s.sync_ready() {
+        v.push(cmd("Sync now", &[], |s, _| s.sync_now()));
+    }
     v.push(cmd("Open settings", &["Mod", ","], |s, _| s.open_settings()));
+    if !cfg!(target_os = "macos") {
+        v.push(cmd("Quit", &["Mod", "Q"], |s, tx| s.quit(tx)));
+    }
     v.push(cmd("Switch folder…", &[], |s, tx| s.go_welcome(tx)));
     v.push(cmd("Restore sample notes", &[], |s, tx| s.reset_sample(tx)));
     v

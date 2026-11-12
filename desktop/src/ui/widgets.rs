@@ -23,6 +23,8 @@ svg!(FOLDER_OPEN, 16.0, r#"<path d="M2 11.5v-7A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.6h3
 svg!(FOLDER_PLUS, 16.0, r#"<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.6h4.9A1.5 1.5 0 0 1 14 6.1v5.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><path d="M8 7v4M6 9h4" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>"#);
 svg!(SEARCH, 16.0, r#"<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>"#);
 svg!(EYE, 16.0, r#"<path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/>"#);
+// Four corners of a frame: focus mode.
+svg!(FOCUS, 16.0, r#"<path d="M2.5 6V4a1.5 1.5 0 0 1 1.5-1.5h2M10 2.5h2A1.5 1.5 0 0 1 13.5 4v2M13.5 10v2a1.5 1.5 0 0 1-1.5 1.5h-2M6 13.5H4A1.5 1.5 0 0 1 2.5 12v-2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#);
 svg!(CODE, 16.0, r#"<path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#);
 // The logo's mark: three sheets in a stack, the violet one in front (assets/brand).
 svg!(MARK, 100.0, r##"<rect x="38" y="10" width="46" height="60" rx="6" fill="#e1dbcf"/><rect x="27" y="20" width="46" height="60" rx="6" fill="#c9bfae"/><rect x="16" y="30" width="46" height="60" rx="6" fill="#7a4fba"/>"##);
@@ -173,8 +175,9 @@ pub fn dots(p: &Pal) -> El {
     if cfg!(target_os = "macos") {
         return el().key("dots").size(52.0, 12.0);
     }
-    // Windows draws its own buttons at the other end of the title bar.
-    if cfg!(target_os = "windows") {
+    // Windows draws its own buttons at the other end of the title bar. On Linux the window
+    // manager closes and places the window, and `Ctrl+Q` quits.
+    if cfg!(any(target_os = "windows", target_os = "linux")) {
         return el().key("dots");
     }
     let dot = |key: &str, help: &str, run: fn(&mut App, &mut Tx)| {

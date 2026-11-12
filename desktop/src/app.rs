@@ -63,6 +63,7 @@ pub const SECS: [(Sec, &str); 6] = [
 #[derive(Clone, Debug, PartialEq)]
 pub enum SyncStatus {
     Idle,
+    Testing { msg: String },
     Error { msg: String, missing: Vec<String> },
     Ok { msg: String },
 }
@@ -106,11 +107,11 @@ pub struct App {
     pub mcp_copied: bool,
     pub notice: Option<String>,
     pub writer: Writer,
-    dirty: BTreeSet<String>,
+    pub(crate) dirty: BTreeSet<String>,
     save_at: Option<f64>,
     state_at: Option<f64>,
     /// The app clock in seconds, from `poll` (virtual in headless runs).
-    now: std::cell::Cell<f64>,
+    pub(crate) now: std::cell::Cell<f64>,
     /// Note counts for the welcome screen's recent list, read once per visit.
     pub counts: HashMap<PathBuf, usize>,
     /// Set by a view that wants the editor focused once it exists.
@@ -127,7 +128,7 @@ pub struct App {
     last_caret: Option<(String, usize, usize, usize)>,
     /// A key reached the editor since the last frame.
     pub key_moved: bool,
-    waker: Option<rune::Waker>,
+    pub(crate) waker: Option<rune::Waker>,
     watcher: Option<crate::watch::Watcher>,
     /// Counts name lookups rebuilt, so cached lines redraw when a link's target appears.
     pub names_gen: u64,
@@ -136,6 +137,7 @@ pub struct App {
     pub dragging: Option<crate::folders::DragNote>,
     pub tree_menu: Option<crate::folders::TreeMenu>,
     pub new_folder: Option<crate::folders::NewFolder>,
+    pub sync: crate::sync::app::SyncState,
 }
 
 pub fn init() -> App {
@@ -190,6 +192,7 @@ pub fn init() -> App {
         dragging: None,
         tree_menu: None,
         new_folder: None,
+        sync: Default::default(),
     };
     crate::theme::reload_omarchy();
     app.mode = if app.persist.mode == "preview" { Mode::Preview } else { Mode::Source };
@@ -348,6 +351,7 @@ impl App {
         changed |= self.sync_mcp_http();
         changed |= self.check_link_click(tx);
         changed |= self.apply_outside_changes();
+        changed |= self.poll_sync(t, tx);
         if self.theme_changed.as_ref().is_some_and(|f| f.swap(false, std::sync::atomic::Ordering::SeqCst)) {
             changed |= crate::theme::reload_omarchy();
         }
@@ -498,10 +502,14 @@ impl App {
     pub fn flush_notes(&mut self) {
         self.save_at = None;
         let Some(v) = &self.vault else { return };
+        let wrote = !self.dirty.is_empty();
         for rel in std::mem::take(&mut self.dirty) {
             if let Some(text) = v.files.get(&rel) {
                 self.writer.send(Op::Write { root: v.path.clone(), rel, text: text.clone() });
             }
+        }
+        if wrote {
+            self.sync_after_save();
         }
     }
 
@@ -511,9 +519,20 @@ impl App {
         self.writer.send(Op::SaveState(Box::new(self.persist.clone())));
     }
 
-    /// Saves everything now, for quitting.
+    /// Saves everything now, for quitting: queued disk work finishes, then unsaved notes are
+    /// written on this thread, so nothing is lost when the process ends.
     pub fn flush_all(&mut self) {
-        self.flush_notes();
+        self.save_at = None;
+        self.writer.wait(Duration::from_secs(5));
+        if let Some(v) = &self.vault {
+            for rel in std::mem::take(&mut self.dirty) {
+                if let Some(text) = v.files.get(&rel) {
+                    if let Err(e) = vault::write_note(&v.path, &rel, text) {
+                        eprintln!("quire: could not save {rel}: {e}");
+                    }
+                }
+            }
+        }
         self.store_session();
         if let Some(v) = &self.vault {
             self.persist.last = Some(v.path.clone());
@@ -589,6 +608,7 @@ impl App {
         }
         self.want_editor_focus = self.mode == Mode::Source;
         self.persist_later();
+        self.sync_auto(0.5);
         Ok(())
     }
 
@@ -800,6 +820,7 @@ impl App {
         self.close_tab(&p);
         self.focus = false;
         self.rebuild_names();
+        self.sync_after_save();
     }
 
     pub fn open_today(&mut self, tx: &mut Tx) {
@@ -909,6 +930,7 @@ impl App {
         self.rebuild_names();
         self.focus_editor(tx);
         self.persist_later();
+        self.sync_after_save();
     }
 
     // ---------- Modes and panels ----------
@@ -947,6 +969,12 @@ impl App {
     pub fn toggle_settings(&mut self, _tx: &mut Tx) {
         self.settings_open = !self.settings_open;
         self.palette = None;
+    }
+
+    /// Saves everything, then closes the window.
+    pub fn quit(&mut self, tx: &mut Tx) {
+        self.flush_all();
+        tx.close_window();
     }
 
     pub fn open_settings(&mut self) {

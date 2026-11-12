@@ -3,7 +3,7 @@
 use rune::{Color, El, PointerButton, el, icon, row, text};
 
 use super::V;
-use super::widgets::{CLOSE, CODE, EYE, PLUS, SIDEBAR_LEFT, SIDEBAR_RIGHT, dots, icon_button, label};
+use super::widgets::{CLOSE, CODE, EYE, FOCUS, PLUS, SIDEBAR_LEFT, SIDEBAR_RIGHT, dots, icon_button, label};
 use crate::app::{App, Mode};
 use crate::md;
 use crate::theme::{mono, sans};
@@ -25,7 +25,8 @@ fn bar(v: V) -> El {
         .child(el().grow(1.0))
         .child(icon_button(p, "toggle-left", &SIDEBAR_LEFT, 16.0, "Toggle sidebar").on_press(|s: &mut App| s.toggle_left()));
 
-    let mut tabs = row().key("tabs").grow(1.0).min_w(0.0).h(42.0).items_end().gap(2.0).pl(6.0).pr(4.0).clip_rounded(0.0).offset(0.0, 1.0);
+    // With the sidebar open, the first tab's left border sits on the line where the content starts.
+    let mut tabs = row().key("tabs").grow(1.0).min_w(0.0).h(42.0).items_end().gap(2.0).pl(if left_visible { 0.0 } else { 6.0 }).pr(4.0).clip_rounded(0.0).offset(0.0, 1.0);
     for p_ in s.tabs.iter().filter(|t| s.files().contains_key(*t)) {
         tabs = tabs.child(tab(v, p_));
     }
@@ -40,6 +41,8 @@ fn bar(v: V) -> El {
             (&CODE, format!("Show source ({})", crate::keys::k(&["Mod", "E"])))
         };
         right = right.child(icon_button(p, "mode", glyph, 16.0, &help).role("switch").checked(s.mode == Mode::Preview).on_press_tx(|s: &mut App, tx| s.toggle_mode(tx)));
+        let help = format!("Focus mode ({})", crate::keys::k(&["Mod", "."]));
+        right = right.child(icon_button(p, "focus", &FOCUS, 16.0, &help).on_press_tx(|s: &mut App, tx| s.toggle_focus(tx)));
     }
     right = right.child(icon_button(p, "toggle-right", &SIDEBAR_RIGHT, 16.0, "Toggle outline").on_press(|s: &mut App| s.toggle_right()));
 

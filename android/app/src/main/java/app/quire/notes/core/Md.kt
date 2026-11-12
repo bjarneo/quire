@@ -41,6 +41,21 @@ object Md {
     fun safeName(s: String): String = s.replace(badName, "-").trim()
     fun isNote(name: String): Boolean = name.endsWith(".md", ignoreCase = true)
 
+    /** True when [path] is inside the folder [dir] or one of its subfolders. */
+    fun inDir(path: String, dir: String): Boolean = dir.isNotEmpty() && path.startsWith("$dir/")
+
+    /**
+     * The name in .trash for a deleted folder: its path with " - " for "/", for example
+     * "Drafts - Old" for Drafts/Old. When [taken] says the name is in use, " 2", " 3" and so on follow.
+     */
+    fun trashDirName(dir: String, taken: (String) -> Boolean): String {
+        val base = dir.split('/').joinToString(" - ")
+        var name = base
+        var n = 2
+        while (taken(name)) name = "$base ${n++}"
+        return name
+    }
+
     /** Maps lowercase note names and lowercase paths without .md to a path. */
     fun buildNames(paths: Collection<String>): Map<String, String> {
         val m = HashMap<String, String>()

@@ -93,8 +93,16 @@ pub enum Op {
     Write { root: PathBuf, rel: String, text: String },
     Rename { root: PathBuf, from: String, to: String },
     Delete { root: PathBuf, rel: String },
+    /// Moves a folder, with every file in it, to `.trash`.
+    DeleteFolder { root: PathBuf, rel: String },
     Mkdir { root: PathBuf, rel: String },
     SaveState(Box<crate::store::Persist>),
+    /// Answers once every operation sent before it is done.
+    Barrier(std::sync::mpsc::Sender<()>),
+    /// Saves a sync's base record after the sync's writes. If any operation failed after
+    /// `failures_before`, it deletes the record, so the next sync keeps both texts of a note
+    /// instead of taking the old one for an edit.
+    SaveSyncBase { path: PathBuf, bytes: Vec<u8>, failures_before: usize },
 }
 
 /// Disk work runs on this thread in the order it was sent. Errors land in `errors`.
@@ -102,6 +110,8 @@ pub enum Op {
 pub struct Writer {
     tx: Sender<Op>,
     pub errors: Arc<Mutex<Vec<String>>>,
+    /// How many operations failed since the start. It only goes up.
+    pub failed: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl Writer {
@@ -109,15 +119,34 @@ impl Writer {
         let (tx, rx) = channel::<Op>();
         let errors: Arc<Mutex<Vec<String>>> = Arc::default();
         let errs = errors.clone();
+        let failed: Arc<std::sync::atomic::AtomicUsize> = Arc::default();
+        let failed2 = failed.clone();
         std::thread::Builder::new()
             .name("quire-writer".into())
             .spawn(move || {
                 while let Ok(op) = rx.recv() {
+                    if let Op::Barrier(done) = &op {
+                        let _ = done.send(());
+                        continue;
+                    }
+                    if let Op::SaveSyncBase { path, bytes, failures_before } = &op {
+                        let r = if failed2.load(std::sync::atomic::Ordering::SeqCst) > *failures_before {
+                            std::fs::remove_file(path).or_else(|e| if e.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(e) })
+                        } else {
+                            write_atomic(path, bytes)
+                        };
+                        if let Err(e) = r {
+                            eprintln!("quire: could not save the sync record: {e}");
+                        }
+                        continue;
+                    }
                     if let Err(e) = apply(&op) {
+                        failed2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         let what = match &op {
-                            Op::Write { rel, .. } | Op::Delete { rel, .. } | Op::Mkdir { rel, .. } => rel.clone(),
+                            Op::Write { rel, .. } | Op::Delete { rel, .. } | Op::DeleteFolder { rel, .. } | Op::Mkdir { rel, .. } => rel.clone(),
                             Op::Rename { from, .. } => from.clone(),
                             Op::SaveState(_) => "settings".into(),
+                            Op::Barrier(_) | Op::SaveSyncBase { .. } => String::new(),
                         };
                         if let Ok(mut v) = errs.lock() {
                             v.push(format!("Could not save {what}: {e}"));
@@ -129,11 +158,42 @@ impl Writer {
                 }
             })
             .ok();
-        Writer { tx, errors }
+        Writer { tx, errors, failed }
     }
 
     pub fn send(&self, op: Op) {
         let _ = self.tx.send(op);
+    }
+}
+
+/// Writes a file through a temporary file next to it and a rename, so a reader never sees half.
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(d) = path.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
+}
+
+/// Writes a note atomically: a temporary file next to it, then a rename.
+pub fn write_note(root: &Path, rel: &str, text: &str) -> std::io::Result<()> {
+    apply(&Op::Write { root: root.to_path_buf(), rel: rel.to_string(), text: text.to_string() })
+}
+
+impl Writer {
+    /// Waits, up to `max`, until every operation sent so far is done.
+    pub fn wait(&self, max: std::time::Duration) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.send(Op::Barrier(tx));
+        let _ = rx.recv_timeout(max);
+    }
+
+    /// A barrier for another thread to wait on.
+    pub fn barrier(&self) -> std::sync::mpsc::Receiver<()> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.send(Op::Barrier(tx));
+        rx
     }
 }
 
@@ -169,8 +229,25 @@ fn apply(op: &Op) -> std::io::Result<()> {
             }
             std::fs::rename(src, dst)
         }
+        Op::DeleteFolder { root, rel } => {
+            let src = root.join(rel);
+            if !src.is_dir() {
+                return Ok(());
+            }
+            let trash = root.join(".trash");
+            std::fs::create_dir_all(&trash)?;
+            let name = rel.replace('/', " - ");
+            let mut dst = trash.join(&name);
+            let mut n = 2;
+            while dst.exists() {
+                dst = trash.join(format!("{name} {n}"));
+                n += 1;
+            }
+            std::fs::rename(src, dst)
+        }
         Op::Mkdir { root, rel } => std::fs::create_dir_all(root.join(rel)),
         Op::SaveState(p) => crate::store::save(p),
+        Op::Barrier(_) | Op::SaveSyncBase { .. } => Ok(()),
     }
 }
 
@@ -188,4 +265,31 @@ pub fn write_sample(root: &Path) -> std::io::Result<()> {
         std::thread::sleep(std::time::Duration::from_millis(6));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_deleted_folder_moves_to_the_trash_with_its_files() {
+        let root = std::env::temp_dir().join(format!("quire-delfolder-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for p in ["Drafts/Old/A.md", "Drafts/Old/img.png"] {
+            std::fs::create_dir_all(root.join(p).parent().unwrap()).unwrap();
+            std::fs::write(root.join(p), "x").unwrap();
+        }
+        let del = |rel: &str| apply(&Op::DeleteFolder { root: root.clone(), rel: rel.into() }).unwrap();
+        del("Drafts/Old");
+        assert!(root.join(".trash/Drafts - Old/A.md").is_file());
+        assert!(root.join(".trash/Drafts - Old/img.png").is_file(), "files that are not notes move too");
+        assert!(!root.join("Drafts/Old").exists());
+        // A second folder with the same path gets a number.
+        std::fs::create_dir_all(root.join("Drafts/Old")).unwrap();
+        del("Drafts/Old");
+        assert!(root.join(".trash/Drafts - Old 2").is_dir());
+        // A folder that is not on disk is no error.
+        del("Missing");
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

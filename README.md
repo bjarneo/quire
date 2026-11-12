@@ -28,7 +28,7 @@ Quire opens a folder and edits the Markdown files in it. There is no database, n
 - **Write in Markdown.** Source mode highlights the syntax as you type, in a monospaced font. `Ctrl+E` switches to a preview that reads like a printed page.
 - **Link notes.** Write `[[Note name]]` and `Ctrl`-click to follow it. A link to a missing note creates the note. Renaming a note rewrites the links to it.
 - **Find anything.** `Ctrl+O` opens any note by a fuzzy name. `Ctrl+P` runs any command. `Ctrl+Shift+F` searches every note. Tags (`#idea`) get their own list.
-- **Keep folders tidy.** Make folders in the file tree, drag notes into them, and use the `+` on a folder to make a note there. In the quick switcher, `Drafts/Idea` makes the note in `Drafts`.
+- **Keep folders tidy.** Make folders in the file tree, drag notes into them, and use the `+` on a folder to make a note there. To delete a folder, right-click it. The folder moves to `.trash` with its files. In the quick switcher, `Drafts/Idea` makes the note in `Drafts`.
 - **Focus.** `Ctrl+.` hides everything but the text, dims the other paragraphs and keeps the line you type near the middle.
 - **Look at home.** Light and dark themes, three editor fonts, and "Match system". On Omarchy, "Match system" takes the colours of your Omarchy theme.
 - **Work with AI tools.** A built-in MCP server lets Claude Desktop, Cursor and other MCP clients read and search your notes.
@@ -114,9 +114,26 @@ Turn on the server in Settings, MCP. Then paste the client configuration from th
 
 Access is read-only by default. Each tool has its own switch, and hidden folders stay out of listings and search. The HTTP transport serves `http://127.0.0.1:3917/mcp` while the app is open and needs the access token from Settings.
 
+## Sync your devices
+
+Quire keeps a copy of your notes in object storage that you control. The desktop and Android apps use the same format, so a note you write on one device opens on the other.
+
+1. Make a bucket at your provider and an access key for it.
+2. Open Settings, Sync & backup, and select the provider.
+3. Fill in the bucket and the key.
+4. Select **Test connection**. Sync starts when the test passes.
+
+Quire works with Amazon S3, Hetzner, Azure Blob Storage, Google Cloud Storage, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi, Scaleway, OVHcloud and any other S3-compatible server, such as MinIO.
+
+- **Encrypt before upload** encrypts each note with AES-256-GCM before upload. The key comes from your passphrase, so the provider stores neither note names nor note text. If you lose the passphrase, nobody can open the remote copy.
+- **When to sync** is **On save**, **Every 5 min** or **Manually**. **Sync now** is also in the command palette.
+- When two devices change the same note, Quire keeps both versions. The other device's text goes to `<name> (conflict <device>).md` next to the note.
+- Folders sync too, empty ones included. A note or a folder that you delete on one device moves to `.trash` on the other devices.
+
+[`SYNC.md`](SYNC.md) describes the remote format, so other tools can read and write it.
+
 ## Not in this version
 
-- Sync & backup has a complete settings form, but Quire does not upload anything yet.
 - With "Ask before changes" on, MCP tools that write return an error, because there is no approval prompt yet.
 
 ## In this repository

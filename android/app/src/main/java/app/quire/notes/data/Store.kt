@@ -19,6 +19,10 @@ data class SyncSettings(
     val whenSync: String = "save",
     val encrypt: Boolean = false,
     val pass: String = "",
+    /** Test connection passed with these settings. A change to the store settings clears it. */
+    val connected: Boolean = false,
+    /** When the last sync ended, in milliseconds since 1970. */
+    val lastSync: Long? = null,
 )
 
 /** Settings and their defaults, from initState() in the prototype. */
@@ -113,6 +117,8 @@ class Store(ctx: Context) {
                 cfg = cfg,
                 whenSync = sy?.optString("when", "save") ?: "save",
                 encrypt = sy?.optBoolean("encrypt", false) ?: false,
+                connected = sy?.optBoolean("connected", false) ?: false,
+                lastSync = sy?.optLong("lastSync", 0L)?.takeIf { it > 0 },
             ),
         )
     }
@@ -133,6 +139,7 @@ class Store(ctx: Context) {
             .put(
                 "sync", JSONObject().put("provider", s.sync.provider).put("when", s.sync.whenSync)
                     .put("encrypt", s.sync.encrypt).put("cfg", cfg)
+                    .put("connected", s.sync.connected).put("lastSync", s.sync.lastSync ?: 0L)
             )
         sp.edit().putString("settings", o.toString()).apply()
     }

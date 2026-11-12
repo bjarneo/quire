@@ -35,6 +35,11 @@ pub fn on_key(s: &mut App, ev: &KeyEvent, tx: &mut Tx) -> bool {
     if ev.key == Key::Escape {
         return s.escape(tx);
     }
+    // macOS quits from its app menu.
+    if !cfg!(target_os = "macos") && ev.mods.cmd && !ev.mods.shift && ev.key == Key::Command('q') {
+        s.quit(tx);
+        return true;
+    }
     if !ev.mods.cmd || s.screen != Screen::Vault {
         return false;
     }

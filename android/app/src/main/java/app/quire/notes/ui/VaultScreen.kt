@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -410,7 +411,21 @@ private fun StatusBar(vm: QuireViewModel) {
             if (selText.isNotEmpty()) "${num(swc)} of ${num(wc)} words" else "${num(wc)} ${if (wc == 1) "word" else "words"}",
             11.5.sp, c.mute, maxLines = 1,
         )
-        if (hint == null) Mono("${max(1, (wc / 230f).roundToInt())} min read", 11.5.sp, c.mute, maxLines = 1)
+        val sync = vm.syncLabel()
+        if (sync != null) {
+            // The phone has no room for both, so the sync state takes the place of the reading time.
+            val (label, busy, failed) = sync
+            Row(
+                Modifier.fillMaxHeight().tap(RoundedCornerShape(4.dp)) { vm.openSyncSettings() },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(Modifier.size(6.dp).background(if (failed) c.err else if (busy) c.acc else c.mark, CircleShape))
+                Mono(label, 11.5.sp, if (failed) c.err else c.mute, maxLines = 1)
+            }
+        } else if (hint == null) {
+            Mono("${max(1, (wc / 230f).roundToInt())} min read", 11.5.sp, c.mute, maxLines = 1)
+        }
     }
 }
 

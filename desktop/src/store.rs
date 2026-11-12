@@ -57,11 +57,15 @@ pub struct Sync {
     pub when: String,
     pub encrypt: bool,
     pub pass: String,
+    /// The last "Test connection" passed with these settings.
+    pub connected: bool,
+    /// When the last sync finished, in milliseconds since 1970.
+    pub last_sync: Option<i64>,
 }
 
 impl Default for Sync {
     fn default() -> Self {
-        Sync { provider: "none".into(), cfg: BTreeMap::new(), when: "save".into(), encrypt: false, pass: String::new() }
+        Sync { provider: "none".into(), cfg: BTreeMap::new(), when: "save".into(), encrypt: false, pass: String::new(), connected: false, last_sync: None }
     }
 }
 

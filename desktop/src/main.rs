@@ -12,6 +12,7 @@ mod mcp;
 mod md;
 mod sample;
 mod store;
+mod sync;
 mod theme;
 mod ui;
 mod vault;
@@ -94,11 +95,15 @@ fn main() {
 }
 
 #[cfg(test)]
-mod scroll_tests {
+pub(crate) mod scroll_tests {
     use rune::{Env, Runtime};
+
+    /// Tests that set HOME and the XDG folders hold this lock, because the variables are global.
+    pub(crate) static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn settings_body_scrolls() {
+        let _env = ENV.lock().unwrap_or_else(|e| e.into_inner());
         let dir = std::env::temp_dir().join(format!("quire-scroll-{}", std::process::id()));
         // SAFETY: tests in this module run before any thread reads these variables.
         unsafe {

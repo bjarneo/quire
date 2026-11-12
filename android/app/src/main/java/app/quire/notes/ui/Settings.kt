@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.quire.notes.core.Sync
+import app.quire.notes.core.sync.SyncEngine
 import app.quire.notes.core.SyncField
 import app.quire.notes.data.Settings
 import app.quire.notes.state.QuireViewModel
@@ -323,18 +324,19 @@ private fun SyncSection(vm: QuireViewModel) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        PrimaryButton("Test connection", height = 36.dp) { vm.testSync() }
-        val msg = if (st.state == "idle") "Not connected yet." else st.msg
-        Txt(
-            msg, 12.5.sp,
-            when (st.state) {
-                "error" -> c.err
-                "ok" -> c.ink2
-                else -> c.mute
-            },
-            Modifier.widthIn(min = 180.dp),
-            lineHeight = 18.sp,
-        )
+        PrimaryButton(if (vm.syncTesting) "Working…" else "Test connection", height = 36.dp) { vm.testSync() }
+        if (sy.connected && !vm.syncTesting && !vm.syncBusy) OutlineButton("Sync now", height = 36.dp, hPad = 14.dp, size = 13.sp) { vm.syncNow() }
+        val err = vm.syncError
+        val (msg, color) = when {
+            st.state == "idle" && sy.connected && err != null -> "The last sync failed. $err" to c.err
+            st.state == "idle" && sy.connected ->
+                (sy.lastSync?.let { "Connected. Last synced ${SyncEngine.ago(it, vm.syncClock)}." } ?: "Connected. Not synced yet.") to c.mute
+            st.state == "idle" -> "Not connected yet." to c.mute
+            st.state == "error" -> st.msg to c.err
+            st.state == "ok" -> st.msg to c.ink2
+            else -> st.msg to c.mute
+        }
+        Txt(msg, 12.5.sp, color, Modifier.widthIn(min = 180.dp), lineHeight = 18.sp)
     }
     Mono(
         "Keys are stored with the Android Keystore, never inside the notes folder.",

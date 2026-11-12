@@ -1,5 +1,5 @@
-//! Settings: Sync & backup. The form is complete and saved, but Quire does not upload yet,
-//! so "Test connection" checks the form and says so instead of pretending to connect.
+//! Settings: Sync & backup. "Test connection" checks the form, then reaches the store; once it
+//! passes, notes sync on save, every 5 minutes or by hand.
 
 use rune::{Color, El, TextEdit, col, row, text, text_input};
 
@@ -173,6 +173,7 @@ fn cfg_value(s: &App, pid: &str, key: &str) -> Option<String> {
 pub fn set_cfg(s: &mut App, key: &str, v: String) {
     let pid = s.settings().sync.provider.clone();
     s.settings_mut().sync.cfg.entry(pid).or_default().insert(key.to_string(), v);
+    s.sync_changed();
     s.sync_status = match std::mem::replace(&mut s.sync_status, SyncStatus::Idle) {
         SyncStatus::Error { msg, missing } => SyncStatus::Error { msg, missing: missing.into_iter().filter(|m| m != key).collect() },
         _ => SyncStatus::Idle,
@@ -191,7 +192,11 @@ pub fn test_sync(s: &mut App) {
         s.sync_status = SyncStatus::Error { msg: format!("Fill in {}.", names.join(", ")), missing: missing.iter().map(|d| d.key.to_string()).collect() };
         return;
     }
-    s.sync_status = SyncStatus::Ok { msg: "Sync isn't built into this version yet. Your settings are saved.".into() };
+    if s.settings().sync.encrypt && s.settings().sync.pass.chars().count() < 12 {
+        s.sync_status = SyncStatus::Error { msg: "The passphrase needs at least 12 characters.".into(), missing: Vec::new() };
+        return;
+    }
+    s.start_test();
 }
 
 pub fn sync(v: V) -> El {
@@ -227,6 +232,7 @@ pub fn sync(v: V) -> El {
             .on_press(move |s: &mut App| {
                 if s.settings().sync.provider != id {
                     s.settings_mut().sync.provider = id.into();
+                    s.sync_changed();
                     s.sync_status = SyncStatus::Idle;
                 }
             })
@@ -283,6 +289,7 @@ pub fn sync(v: V) -> El {
         switch(p, "enc-switch", enc, "Encrypt before upload", |s, _| {
             let e = s.settings().sync.encrypt;
             s.settings_mut().sync.encrypt = !e;
+            s.sync_changed();
         }),
     ));
     if enc {
@@ -294,15 +301,28 @@ pub fn sync(v: V) -> El {
                 .gap(6.0)
                 .pb(16.0)
                 .child(label("Passphrase", sans(12.5, 500.0), p.ink2))
-                .child(text_box(v, "pass", pass, "At least 12 characters", true, false, 320.0, |s, t| s.settings_mut().sync.pass = t))
+                .child(text_box(v, "pass", pass, "At least 12 characters", true, false, 320.0, |s, t| {
+                    s.settings_mut().sync.pass = t;
+                    s.sync_changed();
+                }))
                 .child(label("If you lose this passphrase, the remote copy can't be recovered.", sans(12.0, 400.0), p.mute)),
         );
     }
     let (msg, color) = match &s.sync_status {
+        SyncStatus::Idle if sy.connected && s.sync.error.is_some() => (format!("The last sync failed. {}", s.sync.error.clone().unwrap_or_default()), p.err),
+        SyncStatus::Idle if sy.connected => (
+            match sy.last_sync {
+                Some(t) => format!("Connected. Last synced {}.", crate::sync::app::ago(t)),
+                None => "Connected. Not synced yet.".to_string(),
+            },
+            p.mute,
+        ),
         SyncStatus::Idle => ("Not connected yet.".to_string(), p.mute),
+        SyncStatus::Testing { msg } => (msg.clone(), p.mute),
         SyncStatus::Error { msg, .. } => (msg.clone(), p.err),
         SyncStatus::Ok { msg } => (msg.clone(), p.ink2),
     };
+    let working = s.sync.testing() || s.sync.busy();
     c = c.child(
         row()
             .key("sync-actions")
@@ -314,7 +334,16 @@ pub fn sync(v: V) -> El {
             .center_y()
             .border_sides([1.0, 0.0, 0.0, 0.0], p.line)
             .border_layout()
-            .child(primary_button(p, "test", "Test connection", 32.0, 14.0, 13.0, |s, _| test_sync(s)))
+            .child(primary_button(p, "test", if s.sync.testing() { "Working…" } else { "Test connection" }, 32.0, 14.0, 13.0, |s, _| {
+                if !s.sync.testing() {
+                    test_sync(s);
+                }
+            }))
+            .children(if sy.connected && !working {
+                vec![super::widgets::outline_button(p, "sync-now", "Sync now", 32.0, |s, _| s.sync_now()).px(14.0)]
+            } else {
+                Vec::new()
+            })
             .child(text(msg).font(sans(12.5, 400.0).lh(12.5 * 1.45)).color(color).wrap().grow(1.0).min_w(180.0)),
     );
     c.child(label("Keys are saved in Quire's settings file, never inside the notes folder.", mono(11.0, 400.0).lh(16.5), p.mute).pt(14.0).wrap())

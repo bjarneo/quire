@@ -33,6 +33,7 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - Creates a note inside a folder: use the `+` on the folder's row, right-click the folder, or type `Folder/Name` in the quick switcher. A path creates the folders it names.
 - Moves a note into a folder when you drag it onto the folder. Drop it on the folder name or on empty space to move it to the root. Links that spell out the old folder follow the note.
 - Moves deleted notes to `.trash` inside the folder.
+- Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
 - On macOS the shortcuts use `⌘` in place of `Ctrl`.
 - On Omarchy, the "Match system" theme takes the colours of the current Omarchy theme and follows theme switches while Quire runs.
@@ -53,11 +54,16 @@ With the HTTP transport, Quire serves `http://127.0.0.1:3917/mcp` while the app 
 
 Access is read-only by default. Each tool has its own switch, and hidden folders stay out of listings and search. When "Ask before changes" is on, tools that write return an error, because this version cannot show the approval prompt yet. Turn the option off to allow edits.
 
+## Sync
+
+Settings, Sync & backup connects a notes folder to a bucket. **Test connection** reads the remote folder and reports what it holds. After it passes, Quire syncs when the folder opens, after you save, every 5 minutes, or only when you select **Sync now**, as you choose. The status bar shows the last sync. Select it to open the sync settings.
+
+Quire keeps a record of the last sync for each folder and bucket in `~/.config/quire/sync/`. The record lets Quire tell an edit from a delete. See [`../SYNC.md`](../SYNC.md) for the format.
+
 ## Not in this version
 
 - Very long notes type slower. A keystroke takes about 2.5 ms at 400 lines and 6 ms at 1,000 lines, but about 30 ms at 3,000 lines, because the text field lays out the whole note on each edit.
 
-- Sync & backup: the settings form is complete and saved, but Quire does not upload anything yet. "Test connection" checks the form and says so.
 - The passphrase and keys you enter are saved in `~/.config/quire/state.json`, which only your user can read. They are not in the system keychain.
 
 ## Develop

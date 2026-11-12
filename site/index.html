@@ -9,7 +9,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quire · A plain editor for folders of Markdown files</title>
-<meta name="description" content="Quire edits a folder of plain Markdown files on your disk. Wiki links, tags, search, focus mode and an MCP server for AI apps. For Linux and Android.">
+<meta name="description" content="Quire edits a folder of plain Markdown files on your disk. Wiki links, tags, search, focus mode, sync to storage you control and an MCP server for AI apps. For Linux and Android.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f8f5ef" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1f1d1a" media="(prefers-color-scheme: dark)">
@@ -56,6 +56,7 @@
     <nav class="nav" aria-label="Sections">
       <a href="#plain-files">Features</a>
       <a href="#mcp">AI tools</a>
+      <a href="#sync">Sync</a>
       <a href="#shortcuts">Shortcuts</a>
       <a href="#download">Download</a>
     </nav>
@@ -335,6 +336,66 @@
             <img class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-mcp.png" width="1280" height="800" loading="lazy" decoding="async" alt="MCP settings with the server switched on, the stdio transport, read-only access and a checkbox for each tool.">
           </div>
           <figcaption>MCP settings: transport, access, tools and visible folders.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sync" aria-labelledby="sync-title">
+    <div class="wrap">
+      <div class="head">
+        <h2 id="sync-title"><span class="md" aria-hidden="true">##</span>Sync to storage you control</h2>
+        <div class="prose">
+          <p>Your notes stay on your device first. Quire can keep a copy in object storage that you control.</p>
+          <p>Turn on Encrypt before upload, and Quire encrypts each note with <span class="nowrap">AES-256-GCM</span> before upload. The key comes from a passphrase. The storage provider sees no note names and no note text.</p>
+          <p>Sync works the same in the desktop app and the Android app, so a note you write on your laptop opens on your phone.</p>
+        </div>
+      </div>
+      <div class="sync-grid">
+        <dl class="facts">
+          <div>
+            <dt>storage</dt>
+            <dd>
+              <ul class="chips" aria-label="Storage backends">
+                <li>Amazon S3</li>
+                <li>Hetzner</li>
+                <li>Azure Blob Storage</li>
+                <li>Google Cloud Storage</li>
+                <li>Cloudflare R2</li>
+                <li>Backblaze B2</li>
+                <li>DigitalOcean Spaces</li>
+                <li>Wasabi</li>
+                <li>Scaleway</li>
+                <li>OVHcloud</li>
+              </ul>
+              <p>Any other S3-compatible server also works, such as MinIO, Garage or Ceph.</p>
+            </dd>
+          </div>
+          <div>
+            <dt>when</dt>
+            <dd><p>On save, every 5 minutes, or manually.</p></dd>
+          </div>
+          <div>
+            <dt>conflicts</dt>
+            <dd><p>If two devices change the same note, Quire keeps both versions. The second version is a copy named <code>&lt;name&gt; (conflict &lt;device&gt;).md</code>.</p></dd>
+          </div>
+          <div>
+            <dt>format</dt>
+            <dd><p>The format is open and documented in <a href="https://github.com/bjarneo/quire/blob/main/SYNC.md" data-repo-path="/blob/main/SYNC.md">SYNC.md</a>. The desktop app and the Android app use the same format.</p></dd>
+          </div>
+        </dl>
+        <figure class="figure" data-switch>
+          <div class="figure-bar">
+            <div class="seg" role="group" aria-label="Screenshot of the sync settings">
+              <button type="button" data-view="backend" aria-pressed="true">backend</button>
+              <button type="button" data-view="options" aria-pressed="false">options</button>
+            </div>
+          </div>
+          <div class="shot stack">
+            <img data-panel="backend" class="zoom" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 40%" src="assets/settings-sync.png" width="1280" height="800" loading="lazy" decoding="async" alt="Sync settings with a grid of storage backends. Hetzner is selected. The region, bucket and remote folder fields for Hetzner are below the grid.">
+            <img data-panel="options" class="zoom is-off" style="--z: 1.55; --at: 50% 39%; --z-sm: 2; --at-sm: 62.5% 57.5%" src="assets/settings-sync-2.png" width="1280" height="800" loading="lazy" decoding="async" alt="The lower part of the sync settings. It shows the access keys, the endpoint, the When to sync choice, Encrypt before upload with a passphrase, and the Test connection and Sync now buttons. The status is Connected. Last synced 2m ago.">
+          </div>
+          <figcaption>Sync settings. Open settings with <kbd>Ctrl+,</kbd> and select Sync &amp; backup.</figcaption>
         </figure>
       </div>
     </div>

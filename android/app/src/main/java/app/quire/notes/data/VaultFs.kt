@@ -29,6 +29,12 @@ interface VaultFs {
 
     /** Moves a note into another folder. Fails when a file with that name is already there. */
     fun move(from: String, to: String)
+
+    /**
+     * Moves the folder [dir] with all its files and subfolders into .trash, under the name from
+     * [Md.trashDirName]. Files that are not notes move too.
+     */
+    fun deleteDir(dir: String)
 }
 
 /** Keeps line endings and a byte order mark the way the file had them. The editor sees "\n" only. */
@@ -66,6 +72,12 @@ abstract class BaseFs : VaultFs {
     }
 
     protected fun skip(name: String) = name.startsWith(".")
+
+    /** Drops the line-ending flags of the notes in [dir], after the folder went away. */
+    protected fun forgetDir(dir: String) {
+        crlf.removeAll { Md.inDir(it, dir) }
+        bom.removeAll { Md.inDir(it, dir) }
+    }
 }
 
 /** A vault in the app's own storage, for example files/vaults/Field Notes. */
@@ -139,6 +151,19 @@ class LocalFs(private val root: File) : BaseFs() {
         b.parentFile?.mkdirs()
         if (!a.renameTo(b)) throw IOException("Could not move $from")
         moveFlags(from, to)
+    }
+
+    override fun deleteDir(dir: String) {
+        val src = File(root, dir)
+        if (dir.isEmpty() || !src.isDirectory) return
+        val trash = File(root, ".trash")
+        trash.mkdirs()
+        val dst = File(trash, Md.trashDirName(dir) { File(trash, it).exists() })
+        if (!src.renameTo(dst)) {
+            src.copyRecursively(dst)
+            if (!src.deleteRecursively()) throw IOException("Could not remove $dir after the copy to .trash")
+        }
+        forgetDir(dir)
     }
 }
 
@@ -303,6 +328,50 @@ class SafFs(private val ctx: Context, private val tree: Uri) : BaseFs() {
         docs.remove(from)
         docs[to] = moved
         moveFlags(from, to)
+    }
+
+    override fun deleteDir(dir: String) {
+        if (dir.isEmpty()) return
+        val uri = docs[dir] ?: return
+        val trashUri = dirUri(".trash")
+        val trash = DocumentFile.fromTreeUri(ctx, trashUri) ?: throw IOException("Can't open .trash")
+        val name = Md.trashDirName(dir) { trash.findFile(it) != null }
+        val moved: Uri? = try {
+            DocumentsContract.moveDocument(cr, uri, dirUri(Md.dir(dir)), trashUri)
+        } catch (e: Exception) {
+            null
+        }
+        if (moved != null) {
+            if (displayName(moved) != name) DocumentsContract.renameDocument(cr, moved, name)
+        } else {
+            // The provider has no move, so Quire copies the folder and then deletes it.
+            val made = trash.createDirectory(name) ?: throw IOException("Can't create .trash/$name")
+            if (made.name != name) DocumentsContract.renameDocument(cr, made.uri, name)
+            copyTree(DocumentsContract.getDocumentId(uri), made)
+            DocumentsContract.deleteDocument(cr, uri)
+        }
+        docs.keys.removeAll { it == dir || Md.inDir(it, dir) }
+        forgetDir(dir)
+    }
+
+    private fun copyTree(srcId: String, dst: DocumentFile) {
+        val q = DocumentsContract.buildChildDocumentsUriUsingTree(tree, srcId)
+        val kids = ArrayList<Triple<String, String, String>>()
+        cr.query(q, arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE), null, null, null)?.use { c ->
+            while (c.moveToNext()) kids.add(Triple(c.getString(0), c.getString(1) ?: "", c.getString(2) ?: "application/octet-stream"))
+        } ?: throw IOException("Quire can't read this folder.")
+        for ((id, name, mime) in kids) {
+            val src = DocumentsContract.buildDocumentUriUsingTree(tree, id)
+            if (mime == Document.MIME_TYPE_DIR) {
+                copyTree(id, dst.createDirectory(name) ?: throw IOException("Can't create .trash/$name"))
+            } else {
+                var made = dst.createFile(mime, name)?.uri ?: throw IOException("Can't create .trash/$name")
+                if (displayName(made) != name) made = DocumentsContract.renameDocument(cr, made, name) ?: made
+                cr.openInputStream(src)?.use { input ->
+                    (cr.openOutputStream(made, "w") ?: throw IOException("Can't write .trash/$name")).use { input.copyTo(it) }
+                }
+            }
+        }
     }
 
     companion object {

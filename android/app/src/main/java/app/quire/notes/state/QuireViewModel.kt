@@ -2,6 +2,8 @@ package app.quire.notes.state
 
 import android.app.Application
 import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -16,6 +18,11 @@ import androidx.lifecycle.viewModelScope
 import app.quire.notes.core.Md
 import app.quire.notes.core.Sample
 import app.quire.notes.core.Sync
+import app.quire.notes.core.sync.Outcome
+import app.quire.notes.core.sync.Remote
+import app.quire.notes.core.sync.SyncEngine
+import app.quire.notes.core.sync.SyncException
+import app.quire.notes.data.Loaded
 import app.quire.notes.data.LocalFs
 import app.quire.notes.data.SafFs
 import app.quire.notes.data.SecretStore
@@ -26,6 +33,7 @@ import app.quire.notes.data.SyncSettings
 import app.quire.notes.data.VaultFs
 import app.quire.notes.data.VaultKind
 import app.quire.notes.data.VaultRef
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,6 +53,7 @@ enum class Mode { Source, Preview }
 enum class Panel { Files, Search, Tags }
 
 data class PaletteState(val mode: String, val q: String = "", val idx: Int = 0)
+/** The sync message in the settings. [state] is "idle", "testing", "ok" or "error". */
 data class SyncStatus(val state: String = "idle", val msg: String = "", val missing: List<String> = emptyList())
 data class ScrollReq(val line: Int, val token: Long = System.nanoTime())
 data class OpenSel(
@@ -122,6 +131,18 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     var searchFocusPending by mutableStateOf(false)
     var prevHead by mutableIntStateOf(0)
     var syncStatus by mutableStateOf(SyncStatus()); private set
+
+    /** A sync runs now. */
+    var syncBusy by mutableStateOf(false); private set
+
+    /** Test connection runs now. */
+    var syncTesting by mutableStateOf(false); private set
+
+    /** The last sync failed with this message. */
+    var syncError by mutableStateOf<String?>(null); private set
+
+    /** The wall clock for "synced 2m ago". It moves every 30 seconds while the app is in front. */
+    var syncClock by mutableLongStateOf(System.currentTimeMillis()); private set
     var reveal by mutableStateOf<Set<String>>(emptySet())
     var editorFocused by mutableStateOf(false)
     var systemDark by mutableStateOf(false)
@@ -141,6 +162,18 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     private var saveJob: Job? = null
     private var sessionJob: Job? = null
     private var resumedOnce = false
+
+    private var syncJob: Job? = null
+    private var syncTimer: Job? = null
+    private var tickJob: Job? = null
+    // When the next sync is due, on the elapsed-time clock. Null when none is due.
+    private var syncDue: Long? = null
+    // When the last sync started. "Every 5 min" counts from it, so a failed sync does not start again at once.
+    private var lastTry: Long? = null
+    // Another sync was asked for while one ran.
+    private var syncAgain = false
+    // The person tapped Sync now, so the settings show how it went.
+    private var syncManual = false
 
     init {
         viewModelScope.launch {
@@ -237,6 +270,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             store.lastVault = ref.id
             store.lastScreen = "vault"
             saveSession()
+            syncError = null
+            syncAuto(500)
         }
     }
 
@@ -330,15 +365,23 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onResume() {
+        startTicker()
         if (!resumedOnce) {
             resumedOnce = true
             return
         }
         refresh()
+        syncAuto(500)
     }
 
+    /** The app goes to the background. Unsaved notes go to disk, and the folder syncs unless sync is manual. */
     fun onPause() {
-        leaveVault()
+        tickJob?.cancel()
+        tickJob = null
+        val auto = syncReady() && settings.sync.whenSync != "manual"
+        flushAll(quiet = auto)
+        saveSession()
+        if (auto) startSync()
     }
 
     /** Reads the vault again, so edits from other apps show up. Unsaved edits win. */
@@ -399,13 +442,17 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Writes every unsaved note on the background thread. */
-    fun flushAll() {
+    /**
+     * Writes every unsaved note on the background thread. After the writes, "On save" starts a
+     * sync. With [quiet], no sync starts, because the caller starts one.
+     */
+    fun flushAll(quiet: Boolean = false) {
         saveJob?.cancel()
         val f = fs ?: return
         if (dirty.isEmpty()) return
         val batch = dirty.filter { it !in moving }.mapNotNull { p -> files[p]?.let { p to it } }
         dirty.removeAll { it !in moving }
+        if (batch.isEmpty()) return
         ioScope.launch {
             for ((p, t) in batch) {
                 try {
@@ -414,6 +461,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
                     withContext(Dispatchers.Main) { flash("Couldn't save ${Md.base(p)}. ${e.message ?: ""}".trim()) }
                 }
             }
+            if (!quiet) withContext(Dispatchers.Main) { syncAfterSave() }
         }
     }
 
@@ -422,6 +470,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         ioScope.launch {
             try {
                 f.op()
+                withContext(Dispatchers.Main) { syncAfterSave() }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) { flash("Couldn't $what. ${e.message ?: ""}".trim()) }
             }
@@ -587,6 +636,41 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Moving notes --------------------------------------------------------------------
 
+    /** The number of notes in the folder [dir] and its subfolders. */
+    fun notesIn(dir: String): Int = files.keys.count { Md.inDir(it, dir) }
+
+    /**
+     * Moves the folder [dir] and everything in it to .trash. Unsaved notes in the folder go to
+     * disk first, so the trash holds their last text. The tabs of the notes close.
+     */
+    fun deleteFolder(dir: String) {
+        if (dir.isEmpty() || fs == null) return
+        flushAll()
+        val gone = files.keys.filter { Md.inDir(it, dir) }.toSet()
+        dirty.removeAll(gone)
+        setStructure(files - gone)
+        dropFolder(dir)
+        val i = active?.let { tabs.indexOf(it) } ?: -1
+        tabs = tabs.filter { it !in gone }
+        recent = recent.filter { it !in gone }
+        if (active in gone) {
+            active = if (tabs.isEmpty()) null else tabs[min(max(i, 0), tabs.size - 1)]
+            loadEditor(active, null)
+            renaming = false
+            if (active == null) focus = false
+        }
+        disk("delete the folder ${dir.substringAfterLast('/')}") { deleteDir(dir) }
+        updateCount()
+        persistSession()
+    }
+
+    /** Forgets the folder [dir] and its subfolders in the tree state. The notes in it must be gone already. */
+    private fun dropFolder(dir: String) {
+        folders = folders.filter { it != dir && !Md.inDir(it, dir) }.toSet()
+        expanded = expanded.filter { it != dir && !Md.inDir(it, dir) }.toSet()
+        newFolderParent?.let { if (it == dir || Md.inDir(it, dir)) newFolderParent = null }
+    }
+
     /**
      * Moves a note into [dir] ("" is the root). The note keeps its tab, caret and undo history.
      * Links that spell out the old path change to the new path. Links by name keep working as they are.
@@ -612,6 +696,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             }
             moving.remove(path)
             applyMove(path, np)
+            syncAfterSave()
         }
     }
 
@@ -924,7 +1009,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         store.saveSettings(settings)
         if (settings.sync != before.sync) {
             val snap = secretMap(settings)
-            ioScope.launch { secrets.save(snap) }
+            if (snap != secretMap(before)) ioScope.launch { secrets.save(snap) }
         }
     }
 
@@ -952,7 +1037,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectProvider(id: String) {
         if (id == settings.sync.provider) return
-        setSync { it.copy(provider = id) }
+        setSync { it.copy(provider = id, connected = false) }
         syncStatus = SyncStatus()
     }
 
@@ -960,30 +1045,294 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         setSync { sy ->
             val pid = sy.provider
             val m = (sy.cfg[pid] ?: emptyMap()) + (key to v)
-            sy.copy(cfg = sy.cfg + (pid to m))
+            sy.copy(cfg = sy.cfg + (pid to m), connected = false)
         }
         val st = syncStatus
         syncStatus = if (st.state == "error") st.copy(missing = st.missing - key) else SyncStatus()
     }
 
     fun setWhen(v: String) = setSync { it.copy(whenSync = v) }
-    fun toggleEncrypt() = setSync { it.copy(encrypt = !it.encrypt) }
-    fun setPass(v: String) = setSync { it.copy(pass = v) }
+    fun toggleEncrypt() = setSync { it.copy(encrypt = !it.encrypt, connected = false) }
+    fun setPass(v: String) = setSync { it.copy(pass = v, connected = false) }
+
+    // ---- Sync ------------------------------------------------------------------------------
+
+    /** The remote for the open folder, from the settings. Null when sync is off. */
+    private fun remote(): Remote? {
+        val sy = settings.sync
+        if (sy.provider == "none") return null
+        val cfg = sy.cfg[sy.provider] ?: emptyMap()
+        return Remote(sy.provider, cfg, SyncEngine.prefixFor(cfg, vault?.name ?: "notes"), sy.encrypt, sy.pass)
+    }
+
+    /** Sync is set up, its test passed and a folder is open. */
+    fun syncReady(): Boolean {
+        val sy = settings.sync
+        return sy.provider != "none" && sy.connected && vault != null && fs != null
+    }
+
+    // The base record stays on this phone and out of backups.
+    private fun baseFile(r: Remote, ref: VaultRef) = File(File(ctx.noBackupFilesDir, "sync"), r.id(ref.location) + ".json")
+
+    private fun syncSoon(delayMs: Long) {
+        if (!syncReady()) return
+        val now = SystemClock.elapsedRealtime()
+        val due = now + delayMs
+        val cur = syncDue
+        if (cur != null && cur <= due && syncTimer?.isActive == true) return
+        syncDue = due
+        syncTimer?.cancel()
+        syncTimer = viewModelScope.launch {
+            delay(due - now)
+            syncTimer = null
+            syncDue = null
+            startSync()
+        }
+    }
+
+    /** A sync that the app starts by itself. "Manually" skips it. */
+    private fun syncAuto(delayMs: Long) {
+        if (settings.sync.whenSync != "manual") syncSoon(delayMs)
+    }
+
+    /** After a save, "On save" syncs a moment after the typing stops. */
+    private fun syncAfterSave() {
+        if (settings.sync.whenSync == "save") syncSoon(1500)
+    }
+
+    fun syncNow() {
+        if (!syncReady()) return
+        syncManual = true
+        syncStatus = SyncStatus("testing", "Syncing…")
+        startSync()
+    }
+
+    private fun startTicker() {
+        if (tickJob?.isActive == true) return
+        tickJob = viewModelScope.launch {
+            while (true) {
+                syncClock = System.currentTimeMillis()
+                if (settings.sync.whenSync == "interval" && syncReady() && syncJob == null && syncDue == null) {
+                    val last = lastTry
+                    syncSoon(if (last == null) 0 else max(0L, last + 300_000 - SystemClock.elapsedRealtime()))
+                }
+                delay(30_000)
+            }
+        }
+    }
+
+    private fun syncText(e: Throwable): String = when (e) {
+        is SyncException -> e.message ?: "The sync failed."
+        else -> ("The sync failed. " + (e.message ?: e.javaClass.simpleName)).trim()
+    }
+
+    private fun startSync() {
+        syncTimer?.cancel()
+        syncTimer = null
+        syncDue = null
+        lastTry = SystemClock.elapsedRealtime()
+        if (syncJob != null) {
+            syncAgain = true
+            return
+        }
+        val r = remote()
+        val f = fs
+        val ref = vault
+        if (r == null || f == null || ref == null || !settings.sync.connected) {
+            if (syncManual) syncStatus = SyncStatus()
+            syncManual = false
+            return
+        }
+        // Saved notes go to disk first. The sync reads the folder on the same thread, after the writes.
+        flushAll(quiet = true)
+        val device = Build.MODEL?.trim()?.ifEmpty { null } ?: "Android"
+        val bf = baseFile(r, ref)
+        syncBusy = true
+        syncJob = viewModelScope.launch {
+            val res = try {
+                val local = try {
+                    withContext(io) { f.load() }
+                } catch (e: Exception) {
+                    throw SyncException("Could not read the folder. ${e.message ?: ""}".trim())
+                }
+                val out = withContext(Dispatchers.IO) { SyncEngine.run(r, local.files, local.folders, device, SyncEngine.loadBase(bf)) }
+                Result.success(out to local)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            syncJob = null
+            syncBusy = false
+            res.onSuccess { (out, local) ->
+                applySync(out, f, ref, bf, local)
+                syncError = null
+                val now = System.currentTimeMillis()
+                syncClock = now
+                setSync { it.copy(lastSync = now) }
+                if (syncManual) {
+                    val n = files.size
+                    syncStatus = SyncStatus("ok", "Synced $n ${if (n == 1) "note" else "notes"} with ${out.place}.")
+                }
+            }.onFailure { e ->
+                val msg = syncText(e)
+                if (syncManual) syncStatus = SyncStatus("error", msg)
+                syncError = msg
+            }
+            // After a sync that started by itself, the settings show the live state again.
+            if (!syncManual && syncStatus.state == "ok") syncStatus = SyncStatus()
+            syncManual = false
+            if (syncAgain) {
+                syncAgain = false
+                syncSoon(500)
+            }
+        }
+    }
 
     /**
-     * Checks the required fields like testSync() in the prototype. Quire has no sync engine yet,
-     * so a complete form only confirms that the settings are saved. No network call happens.
+     * Lays the outcome of a sync over the folder. A note that changed while the sync ran keeps its
+     * new text, and the remote text comes in beside it as a conflict copy. The disk changes go
+     * first, then the new base. If a write fails, the base goes, so the next sync loses no note.
+     * A folder delete from a sync starts no other sync.
      */
+    private fun applySync(out: Outcome, f: VaultFs, ref: VaultRef, bf: File, local: Loaded) {
+        val open = vault?.id == ref.id && fs === f
+        val plan = if (open) {
+            SyncEngine.plan(out, files, folders, dirty.toSet())
+        } else {
+            SyncEngine.plan(out, local.files, local.folders, emptySet())
+        }
+        ioScope.launch {
+            var failed: String? = null
+            for ((p, t) in plan.writes) {
+                try {
+                    f.write(p, t)
+                } catch (e: Exception) {
+                    failed = "Couldn't save ${Md.base(p)}. ${e.message ?: ""}".trim()
+                }
+            }
+            for (p in plan.deletes) {
+                try {
+                    f.delete(p)
+                } catch (e: Exception) {
+                    failed = "Couldn't move ${Md.base(p)} to .trash. ${e.message ?: ""}".trim()
+                }
+            }
+            for (d in plan.mkdirs) {
+                try {
+                    f.mkdirs(d)
+                } catch (e: Exception) {
+                    failed = "Couldn't create the folder ${d.substringAfterLast('/')}. ${e.message ?: ""}".trim()
+                }
+            }
+            for (d in plan.rmdirs) {
+                try {
+                    f.deleteDir(d)
+                } catch (e: Exception) {
+                    failed = "Couldn't move the folder ${d.substringAfterLast('/')} to .trash. ${e.message ?: ""}".trim()
+                }
+            }
+            try {
+                if (failed == null) SyncEngine.saveBase(bf, out.base) else bf.delete()
+            } catch (e: Exception) {
+                // The old base stays. The next sync compares with it, and no note is lost.
+            }
+            failed?.let { m -> withContext(Dispatchers.Main) { flash(m) } }
+        }
+        if (open && (plan.writes.isNotEmpty() || plan.deletes.isNotEmpty() || plan.mkdirs.isNotEmpty() || plan.rmdirs.isNotEmpty())) {
+            val nf = LinkedHashMap(files)
+            var nd = folders
+            for ((p, t) in plan.writes) {
+                nf[p] = t
+                nd = nd + ancestors(p)
+            }
+            for (p in plan.deletes) nf.remove(p)
+            for (d in plan.mkdirs) nd = nd + d + ancestors(d)
+            setStructure(nf, nd)
+            plan.rmdirs.forEach { dropFolder(it) }
+            val gone = plan.deletes.toSet()
+            if (gone.isNotEmpty()) {
+                val i = active?.let { tabs.indexOf(it) } ?: -1
+                tabs = tabs.filter { it !in gone }
+                recent = recent.filter { it !in gone }
+                if (active in gone) {
+                    active = if (tabs.isEmpty()) null else tabs[min(max(i, 0), tabs.size - 1)]
+                    loadEditor(active, null)
+                    if (active == null) focus = false
+                }
+            }
+            val a = active
+            val t = a?.let { nf[it] }
+            if (t != null && a !in dirty && editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t))
+            updateCount()
+            persistSession()
+        }
+        if (plan.conflicts.isNotEmpty()) {
+            val who = if (plan.conflicts.size == 1) "A note" else "Some notes"
+            flash("$who changed on two devices. Quire kept both versions: ${plan.conflicts.joinToString(", ")}.")
+            // The copies go up on the next sync.
+            syncAuto(1000)
+        }
+    }
+
+    /** Checks the form, then reaches the store. It only reads, so it changes nothing remote. */
     fun testSync() {
+        if (syncTesting) return
         val sy = settings.sync
         val cfg = syncCfg()
         val spec = Sync.spec(sy.provider, cfg, vault?.name ?: "")
         val missing = Sync.missing(spec, cfg)
-        syncStatus = if (missing.isNotEmpty()) {
-            SyncStatus("error", "Fill in " + missing.joinToString(", ") { it.label.lowercase() } + ".", missing.map { it.key })
-        } else {
-            SyncStatus("ok", "Sync isn't built into this version yet. Your settings are saved.")
+        if (missing.isNotEmpty()) {
+            syncStatus = SyncStatus("error", "Fill in " + missing.joinToString(", ") { it.label.lowercase() } + ".", missing.map { it.key })
+            return
         }
+        if (sy.encrypt && sy.pass.codePointCount(0, sy.pass.length) < 12) {
+            syncStatus = SyncStatus("error", "The passphrase needs at least 12 characters.")
+            return
+        }
+        val r = remote() ?: return
+        val notes = files.size
+        val before = sy.lastSync != null
+        syncStatus = SyncStatus("testing", "Connecting…")
+        syncTesting = true
+        viewModelScope.launch {
+            val res = try {
+                Result.success(withContext(Dispatchers.IO) { SyncEngine.test(r, notes, before) })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            syncTesting = false
+            // The settings changed while the test ran, so its answer is for other settings.
+            if (remote() != r) {
+                syncStatus = SyncStatus()
+                return@launch
+            }
+            res.onSuccess { msg ->
+                setSync { it.copy(connected = true) }
+                syncStatus = SyncStatus("ok", msg)
+                syncAuto(200)
+            }.onFailure { e ->
+                setSync { it.copy(connected = false) }
+                syncStatus = SyncStatus("error", syncText(e))
+            }
+        }
+    }
+
+    /** The sync state for the status bar: the label, busy and failed. Null when sync is off. */
+    fun syncLabel(): Triple<String, Boolean, Boolean>? {
+        val sy = settings.sync
+        if (sy.provider == "none" || !sy.connected) return null
+        if (syncBusy) return Triple("syncing…", true, false)
+        if (syncError != null) return Triple("sync failed", false, true)
+        val last = sy.lastSync ?: return Triple("not synced yet", false, false)
+        return Triple("synced " + SyncEngine.ago(last, syncClock), false, false)
+    }
+
+    fun openSyncSettings() {
+        setSec = "sync"
+        openSettings()
     }
 
     // ---- Command palette and quick switcher -------------------------------------------------
@@ -1005,6 +1354,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (has) Cmd("Rename note") { startRename() } else null,
             if (has) Cmd("Delete note") { deleteNote() } else null,
             if (has) Cmd("Close tab") { active?.let { closeTab(it) } } else null,
+            if (syncReady()) Cmd("Sync now") { syncNow() } else null,
             Cmd("Open settings") { openSettings() },
             Cmd("Switch folder…") { goWelcome() },
             Cmd("Restore sample notes") { resetSample() },

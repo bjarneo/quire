@@ -281,15 +281,15 @@ private fun VaultMenu(vm: QuireViewModel) {
 }
 
 @Composable
-private fun MenuItem(label: String, onClick: () -> Unit) {
+private fun MenuItem(label: String, modifier: Modifier = Modifier, color: Color = LocalQ.current.ink, onClick: () -> Unit) {
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .height(36.dp)
             .tap(RoundedCornerShape(6.dp), onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.CenterStart,
-    ) { Txt(label, 13.sp, LocalQ.current.ink) }
+    ) { Txt(label, 13.sp, color) }
 }
 
 @Composable
@@ -344,14 +344,43 @@ private fun FolderRow(vm: QuireViewModel, r: TreeRow, drag: DragState, menu: Boo
             ) { QIcon(QIcons.PLUS, 12f, 12.dp, 1.3f, c.mute) }
         }
         if (menu) {
-            RowMenu(closeMenu) {
-                MenuItem("New note here") {
-                    closeMenu()
-                    vm.newNote(inFolder = r.path)
-                }
-                MenuItem("New folder here") {
-                    closeMenu()
-                    vm.startNewFolder(r.path)
+            var asking by remember { mutableStateOf(false) }
+            val close = {
+                asking = false
+                closeMenu()
+            }
+            RowMenu(close) {
+                if (!asking) {
+                    MenuItem("New note here") {
+                        close()
+                        vm.newNote(inFolder = r.path)
+                    }
+                    MenuItem("New folder here") {
+                        close()
+                        vm.startNewFolder(r.path)
+                    }
+                    MenuItem("Delete folder") {
+                        // A folder without notes goes at once. A folder with notes asks first.
+                        if (vm.notesIn(r.path) == 0) {
+                            close()
+                            vm.deleteFolder(r.path)
+                        } else {
+                            asking = true
+                        }
+                    }
+                } else {
+                    val n = vm.notesIn(r.path)
+                    Txt(
+                        "Move ${r.name} and its $n ${if (n == 1) "note" else "notes"} to the trash?",
+                        13.sp, c.ink2, Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp), lineHeight = 18.sp,
+                    )
+                    Row {
+                        MenuItem("Cancel", Modifier.weight(1f)) { close() }
+                        MenuItem("Delete", Modifier.weight(1f), color = c.err) {
+                            close()
+                            vm.deleteFolder(r.path)
+                        }
+                    }
                 }
             }
         }
