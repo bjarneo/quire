@@ -173,6 +173,10 @@ pub fn dots(p: &Pal) -> El {
     if cfg!(target_os = "macos") {
         return el().key("dots").size(52.0, 12.0);
     }
+    // Windows draws its own buttons at the other end of the title bar.
+    if cfg!(target_os = "windows") {
+        return el().key("dots");
+    }
     let dot = |key: &str, help: &str, run: fn(&mut App, &mut Tx)| {
         el().key(key).size(12.0, 12.0).radius(6.0).fill(p.mark).label(help).help(help).role("button").on_press_tx(move |s: &mut App, tx| run(s, tx))
     };

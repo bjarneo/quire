@@ -15,9 +15,24 @@ android {
         versionName = "0.1.0"
     }
 
+    // Release signing reads its key from Gradle properties, for example in
+    // ~/.gradle/gradle.properties, so no key or password is in this repository.
+    val storeFile = providers.gradleProperty("QUIRE_RELEASE_STORE_FILE").orNull
+    if (storeFile != null) {
+        signingConfigs {
+            create("release") {
+                this.storeFile = file(storeFile)
+                storePassword = providers.gradleProperty("QUIRE_RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("QUIRE_RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("QUIRE_RELEASE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

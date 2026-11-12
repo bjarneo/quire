@@ -1,4 +1,7 @@
 //! Quire: a plain editor for folders of Markdown files.
+// On Windows the app opens no console window. `quire mcp` still talks over the pipes its
+// client gives it.
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
 mod cli;
@@ -67,6 +70,11 @@ fn main() {
     }
     rune::prewarm_gpu();
     rune::set_app_id("quire");
+    // The Dock icon on macOS, and the title bar and taskbar icon on Windows. Linux takes the
+    // icon from the launcher entry.
+    if !cfg!(target_os = "linux") {
+        let _ = rune::set_app_icon(&include_bytes!("../packaging/quire-512.png")[..]);
+    }
     let spec = AppSpec {
         min_size: Some((520.0, 400.0)),
         fonts: theme::FONTS,

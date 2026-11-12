@@ -64,7 +64,16 @@ The Android app is the same editor for a phone: one pane, a drawer for the files
 
 ## Install
 
-Quire is pre-release. There are no packaged downloads yet, so build it from source.
+Download the build for your system from the [latest release](https://github.com/bjarneo/quire/releases/latest):
+
+| System | File |
+| --- | --- |
+| Linux, x86-64 | `quire-<version>-linux-x86_64.tar.gz`. Unpack it and run `./install.sh`. |
+| macOS, Apple silicon | `quire-<version>-macos-arm64.zip`. The app is not notarized, so right-click it and choose **Open** the first time. |
+| Windows, x86-64 | `quire-<version>-windows-x86_64.zip`. The app is not signed, so SmartScreen can warn you. |
+| Android 8.0 and later | `quire-<version>-android.apk` |
+
+Quire is pre-release. To build it yourself, follow the steps below.
 
 ### Desktop (Linux)
 

@@ -1,0 +1,95 @@
+# Builds the desktop app for Linux, macOS and Windows when a version tag is pushed, and attaches
+# the archives to the GitHub release of that tag. The Android APK is signed and attached by hand,
+# so the signing key never leaves the maintainer's machine.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The tag to build, such as v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: macos-14
+          - os: windows-2022
+    runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Linux build packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libdbus-1-dev pkg-config
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Pack for Linux
+        if: runner.os == 'Linux'
+        run: |
+          V="${TAG#v}"
+          D="quire-$V-linux-x86_64"
+          mkdir -p "$D/icons"
+          cp target/release/quire packaging/quire.desktop packaging/linux/install.sh "$D/"
+          cp packaging/quire.svg packaging/quire-16.svg "$D/icons/"
+          cp ../LICENSE "$D/"
+          tar czf "../$D.tar.gz" "$D"
+          echo "ASSET=$D.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Pack for macOS
+        if: runner.os == 'macOS'
+        run: |
+          V="${TAG#v}"
+          A=Quire.app
+          mkdir -p "$A/Contents/MacOS" "$A/Contents/Resources"
+          cp target/release/quire "$A/Contents/MacOS/quire"
+          iconutil -c icns packaging/macos/quire.iconset -o "$A/Contents/Resources/quire.icns"
+          sed "s/@VERSION@/$V/g" packaging/macos/Info.plist > "$A/Contents/Info.plist"
+          # An ad-hoc signature, so the app runs on Apple silicon. It is not notarized.
+          codesign --force --deep --sign - "$A"
+          ditto -c -k --keepParent "$A" "../quire-$V-macos-arm64.zip"
+          echo "ASSET=quire-$V-macos-arm64.zip" >> "$GITHUB_ENV"
+
+      - name: Pack for Windows
+        if: runner.os == 'Windows'
+        run: |
+          V="${TAG#v}"
+          D="quire-$V-windows-x86_64"
+          mkdir -p "$D"
+          cp target/release/quire.exe "$D/"
+          cp ../LICENSE "$D/LICENSE.txt"
+          7z a "../$D.zip" "$D" > /dev/null
+          echo "ASSET=$D.zip" >> "$GITHUB_ENV"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --title "Quire ${TAG#v}" --notes-file ../.github/release-notes.md --verify-tag \
+            || true
+          gh release upload "$TAG" "../$ASSET" --clobber
