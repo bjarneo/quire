@@ -22,7 +22,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-          - os: macos-14
+          - os: macos-15
           - os: windows-2022
     runs-on: ${{ matrix.os }}
     env:
