@@ -168,6 +168,10 @@ pub struct Session {
     pub active: Option<String>,
     pub recent: Vec<String>,
     pub expanded: Vec<String>,
+    /// Pinned notes, in the order they were pinned.
+    pub pinned: Vec<String>,
+    /// The Pinned group in the tree is closed.
+    pub pins_closed: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

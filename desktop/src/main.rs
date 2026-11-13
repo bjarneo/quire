@@ -14,6 +14,7 @@ mod lock;
 mod lock_app;
 mod mcp;
 mod md;
+mod pins;
 mod sample;
 mod store;
 mod sync;

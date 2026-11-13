@@ -32,7 +32,7 @@ To run the unit tests, run this command:
 ./gradlew testDebugUnitTest
 ```
 
-The tests run on the JVM, with no device. They cover the sync engine, the encryption test values in [`../SYNC.md`](../SYNC.md), an S3 round trip against a local test server, the image rules, the toolbar rules, the themes and the folder delete.
+The tests run on the JVM, with no device. They cover the sync engine, the encryption test values in [`../SYNC.md`](../SYNC.md), an S3 round trip against a local test server, the image rules, the toolbar rules, the themes, the folder delete and the pins.
 
 ## Release build
 
@@ -85,6 +85,7 @@ Quire saves an edit 500 ms after you stop typing, and again when the app goes to
 - To delete a folder, long-press it and select "Delete folder". A folder with notes asks first. The folder moves to `.trash` with every file in it.
 - To move a note, long-press it in the drawer and drag it onto a folder. Drop it on the folder name at the top to move it to the root. You can also long-press a note and select "Move to…".
 - In the quick switcher, type a path such as `Drafts/Idea` to create a note in that folder.
+- To pin a note, long-press it and select "Pin", or use the pin button in the toolbar. The note shows in the Pinned group at the top of the drawer, with its folder name next to it. The file stays in its folder. Pins are saved on the phone for each notes folder and do not sync.
 
 ## Writing
 

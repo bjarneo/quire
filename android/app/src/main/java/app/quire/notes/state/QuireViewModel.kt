@@ -25,6 +25,7 @@ import app.quire.notes.core.Img
 import app.quire.notes.core.Lock
 import app.quire.notes.core.LockKey
 import app.quire.notes.core.Md
+import app.quire.notes.core.Pins
 import app.quire.notes.core.Sample
 import app.quire.notes.core.Sync
 import app.quire.notes.core.Themes
@@ -274,6 +275,9 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             active = ses.active?.takeIf { it in files } ?: tabs.firstOrNull()
             recent = ses.recent.filter { it in files }.ifEmpty { tabs }
             expanded = ses.expanded
+            // Pins of files that are gone drop out when the folder loads.
+            pinned = Pins.filter(ses.pinned, loaded.files.keys)
+            pinsOpen = ses.pinsOpen
             query = ""
             leftPanel = Panel.Files
             focus = false
@@ -426,6 +430,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             setStructure(merged, loaded.folders)
             tabs = tabs.filter { it in merged }
             recent = recent.filter { it in merged }
+            pinned = Pins.filter(pinned, merged.keys)
             val a = active
             if (a == null || a !in merged) {
                 active = tabs.firstOrNull()
@@ -529,7 +534,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun saveSession() {
         val v = vault ?: return
-        store.saveSession(v.id, Session(tabs, active, recent, expanded))
+        store.saveSession(v.id, Session(tabs, active, recent, expanded, pinned, pinsOpen))
     }
 
     private fun loadEditor(path: String?, sel: OpenSel?) {
@@ -687,6 +692,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         val gone = files.keys.filter { Md.inDir(it, dir) }.toSet()
         dirty.removeAll(gone)
         unlocked = unlocked - gone
+        pinned = Pins.removeIn(pinned, dir)
         setStructure(files - gone)
         dropFolder(dir)
         val i = active?.let { tabs.indexOf(it) } ?: -1
@@ -759,6 +765,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         setStructure(nf, folders + ancestors(np))
         tabs = tabs.map { if (it == old) np else it }
         recent = recent.map { if (it == old) np else it }
+        pinned = Pins.rename(pinned, old, np)
         expanded = expanded + ancestors(np)
         if (active == old) active = np
         // The open note may be the moved one or one whose links changed. The editor must show the new text.
@@ -787,6 +794,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteNote() {
         val p = active ?: return
         unlocked = unlocked - p
+        pinned = Pins.remove(pinned, p)
         dirty.remove(p)
         val i = tabs.indexOf(p)
         val nt = tabs.filter { it != p }
@@ -867,6 +875,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         setStructure(nf)
         tabs = tabs.map { if (it == old) np else it }
         recent = recent.map { if (it == old) np else it }
+        pinned = Pins.rename(pinned, old, np)
         active = np
         renaming = false
         if (editor.text != shown) {
@@ -924,7 +933,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun wrapSelection(mk: String) = format(if (mk == "**") "bold" else "italic")
 
     /** The actions of the Markdown toolbar, in its order. */
-    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image", "lock")
+    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image", "pin", "lock")
 
     /** Runs one action of the Markdown toolbar on the selection of the editor. */
     fun format(action: String) {
@@ -934,6 +943,10 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (action == "lock") {
             askLock()
+            return
+        }
+        if (action == "pin") {
+            active?.let { togglePin(it) }
             return
         }
         val a = active ?: return
@@ -1151,6 +1164,30 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun setWhen(v: String) = setSync { it.copy(whenSync = v) }
     fun toggleEncrypt() = setSync { it.copy(encrypt = !it.encrypt, connected = false) }
     fun setPass(v: String) = setSync { it.copy(pass = v, connected = false) }
+
+    // ---- Pinned notes ----------------------------------------------------------------------
+
+    /** Pinned notes of the open folder, in the order they were pinned. */
+    var pinned by mutableStateOf<List<String>>(emptyList()); private set
+
+    /** The Pinned group of the tree is open. */
+    var pinsOpen by mutableStateOf(true); private set
+
+    fun isPinned(p: String): Boolean = p in pinned
+
+    /** Pins a note to the top of the tree, or takes the pin away. A new pin opens the group. */
+    fun togglePin(p: String) {
+        if (p !in files) return
+        val was = p in pinned
+        pinned = Pins.toggle(pinned, p)
+        if (!was) pinsOpen = true
+        persistSession()
+    }
+
+    fun togglePinsOpen() {
+        pinsOpen = !pinsOpen
+        persistSession()
+    }
 
     // ---- Locked notes ----------------------------------------------------------------------
 
@@ -1713,11 +1750,13 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             for (p in plan.deletes) {
                 nf.remove(p)
                 unlocked = unlocked - p
+                pinned = Pins.remove(pinned, p)
             }
             for (d in plan.mkdirs) nd = nd + d + ancestors(d)
             setStructure(nf, nd)
             sealed.forEach { (p, t) -> outsideLockedText(p, t) }
             plan.rmdirs.forEach { dropFolder(it) }
+            plan.rmdirs.forEach { pinned = Pins.removeIn(pinned, it) }
             val gone = plan.deletes.toSet()
             if (gone.isNotEmpty()) {
                 val i = active?.let { tabs.indexOf(it) } ?: -1
@@ -1819,6 +1858,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (has) Cmd("Delete note") { deleteNote() } else null,
             if (has) Cmd("Close tab") { active?.let { closeTab(it) } } else null,
             if (has) Cmd("Insert image") { requestImagePick() } else null,
+            if (has) Cmd(if (active?.let { isPinned(it) } == true) "Unpin note" else "Pin note") { active?.let { togglePin(it) } } else null,
             if (has && !locked && !open) Cmd("Lock note with a password…") { askLock() } else null,
             if (open) Cmd("Lock note now") { relock() } else null,
             if (open) Cmd("Remove password") { removePassword() } else null,

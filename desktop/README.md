@@ -26,7 +26,7 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 
 - Edits the `.md` files of a folder. Saves each note half a second after you stop typing, and on quit.
 - Shows source with live Markdown highlighting, or a rendered preview (`Ctrl+E`).
-- Has a floating formatting toolbar at the top of the note in source mode. It stays in view, and the note scrolls under it. The buttons are bold, italic, strikethrough, heading, link, note link, lists, task, quote, code and image. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` do the same as the first buttons. Turn off Settings, Editor, **Formatting toolbar** to hide it.
+- Has a floating formatting toolbar at the top of the note in source mode. It stays in view, and the note scrolls under it. The buttons are bold, italic, strikethrough, heading, link, note link, lists, task, quote, code, image, pin and lock. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` do the same as the first buttons. Turn off Settings, Editor, **Formatting toolbar** to hide it.
 - Hides everything but the text in focus mode. Use `Ctrl+.` or the focus button in the title bar.
 - Locks a note with its own password: use the lock button at the end of the toolbar, or "Lock note with a password…" in the command palette. Quire encrypts the note with AES-256-GCM and a key from the password. The file on disk, search, the link index and sync see only the encrypted text. To read the note, enter the password. Each save encrypts the note again. The note locks again when you close its tab or select the lock button. "Remove password" in the command palette saves it as plain text again. If you forget the password, nobody can open the note. `../SYNC.md` describes the format.
 
@@ -49,6 +49,7 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - Creates a note inside a folder: use the `+` on the folder's row, right-click the folder, or type `Folder/Name` in the quick switcher. A path creates the folders it names.
 - Moves a note into a folder when you drag it onto the folder. Drop it on the folder name or on empty space to move it to the root. Links that spell out the old folder follow the note.
 - Moves deleted notes to `.trash` inside the folder.
+- Pins a note to the Pinned group at the top of the tree. Right-click the note and select **Pin**, drag it onto the group, select the pin button in the toolbar, or use "Pin note" in the command palette. The file stays in its folder. The tree shows the folder name next to the pinned note. Pins are saved for each notes folder in `state.json` and do not sync.
 - Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
 

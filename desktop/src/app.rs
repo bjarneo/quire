@@ -86,6 +86,10 @@ pub struct App {
     pub active: Option<String>,
     pub recent: Vec<String>,
     pub expanded: BTreeSet<String>,
+    /// Pinned notes (`pins.rs`), in the order they were pinned.
+    pub pinned: Vec<String>,
+    /// The Pinned group in the tree is open.
+    pub pins_open: bool,
     pub mode: Mode,
     pub left_panel: Panel,
     pub query: TextEdit,
@@ -169,6 +173,8 @@ pub fn init() -> App {
         active: None,
         recent: Vec::new(),
         expanded: BTreeSet::new(),
+        pinned: Vec::new(),
+        pins_open: true,
         mode: Mode::Source,
         left_panel: Panel::Files,
         query: TextEdit::new(""),
@@ -271,7 +277,7 @@ fn seed_sample(p: &mut Persist) {
     let tabs: Vec<String> = crate::sample::TABS.iter().map(|s| s.to_string()).collect();
     p.sessions.insert(
         path.to_string_lossy().into_owned(),
-        Session { tabs: tabs.clone(), active: Some(tabs[0].clone()), recent: tabs, expanded: vec!["Drafts".into(), "Journal".into()] },
+        Session { tabs: tabs.clone(), active: Some(tabs[0].clone()), recent: tabs, expanded: vec!["Drafts".into(), "Journal".into()], ..Default::default() },
     );
     p.last = Some(path);
     let _ = store::save(p);
@@ -378,6 +384,8 @@ impl App {
             active: self.active.clone(),
             recent: self.recent.iter().take(30).cloned().collect(),
             expanded: self.expanded.iter().cloned().collect(),
+            pinned: self.pinned.clone(),
+            pins_closed: !self.pins_open,
         }
     }
 
@@ -487,6 +495,7 @@ impl App {
                 self.close_tab(&rel);
             }
             self.recent.retain(|x| x != &rel);
+            self.pinned.retain(|x| x != &rel);
         }
         if any {
             self.rebuild_names();
@@ -661,6 +670,8 @@ impl App {
             self.recent = self.tabs.clone();
         }
         self.expanded = ses.expanded.into_iter().collect();
+        self.pinned = ses.pinned.into_iter().filter(|p| v.files.contains_key(p)).collect();
+        self.pins_open = !ses.pins_closed;
         if !self.persist.vaults.iter().any(|r| r.path == path) {
             self.persist.vaults.push(VaultRef { name: v.name.clone(), path: path.to_path_buf() });
         }
@@ -758,7 +769,7 @@ impl App {
         let tabs: Vec<String> = crate::sample::TABS.iter().map(|s| s.to_string()).collect();
         self.persist.sessions.insert(
             path.to_string_lossy().into_owned(),
-            Session { tabs: tabs.clone(), active: Some(tabs[0].clone()), recent: tabs, expanded: vec!["Drafts".into(), "Journal".into()] },
+            Session { tabs: tabs.clone(), active: Some(tabs[0].clone()), recent: tabs, expanded: vec!["Drafts".into(), "Journal".into()], ..Default::default() },
         );
         // Load without storing the current session over the one just written.
         self.vault = None;
@@ -910,6 +921,7 @@ impl App {
         self.dirty.remove(&p);
         self.writer.send(Op::Delete { root, rel: p.clone() });
         self.recent.retain(|x| x != &p);
+        self.pinned.retain(|x| x != &p);
         self.close_tab(&p);
         self.focus = false;
         self.rebuild_names();
@@ -1017,7 +1029,7 @@ impl App {
             let t = self.files().get(&p).cloned().unwrap_or_default();
             self.set_text(&p, t);
         }
-        for t in self.tabs.iter_mut().chain(self.recent.iter_mut()) {
+        for t in self.tabs.iter_mut().chain(self.recent.iter_mut()).chain(self.pinned.iter_mut()) {
             if *t == old {
                 *t = np.clone();
             }

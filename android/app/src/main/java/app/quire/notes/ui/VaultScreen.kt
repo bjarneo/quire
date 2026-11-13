@@ -610,7 +610,8 @@ private fun MarkdownBar(vm: QuireViewModel) {
         vm.toolbar.forEach { a ->
             val label = toolLabel(a)
             // The Lock button shows as active while the note is unlocked. A tap locks it again.
-            val on = a == "lock" && unlocked
+            // The Pin button shows as active while the note is pinned.
+            val on = (a == "lock" && unlocked) || (a == "pin" && vm.active?.let { vm.isPinned(it) } == true)
             Box(
                 Modifier
                     .size(42.dp, 38.dp)
@@ -636,6 +637,7 @@ private fun toolLabel(a: String) = when (a) {
     "quote" -> "Quote"
     "code" -> "Code"
     "lock" -> "Lock"
+    "pin" -> "Pin"
     else -> "Image"
 }
 
@@ -655,6 +657,7 @@ private fun ToolGlyph(a: String, c: QColors, on: Boolean = false) {
         "quote" -> QIcon(QIcons.QUOTE, 16f, 16.dp, 1.3f, ink)
         "code" -> QIcon(QIcons.CODE, 16f, 16.dp, 1.3f, ink)
         "lock" -> QIcon(QIcons.LOCK, 16f, 16.dp, 1.3f, lockColor(c, on))
+        "pin" -> QIcon(QIcons.PIN, 16f, 16.dp, 1.25f, lockColor(c, on))
         else -> QIcon(QIcons.IMAGE, 16f, 16.dp, 1.25f, ink)
     }
 }

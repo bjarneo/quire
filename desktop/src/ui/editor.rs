@@ -167,9 +167,31 @@ fn lock_button(v: V) -> El {
         .child(icon(&LOCK, 16.0).color(if open { p.acc } else { p.mute }).group_color(if open { p.acc } else { p.ink }))
 }
 
-/// The formatting toolbar: a row over the note, lined up with its text column. The ink of the
-/// first icon sits on the text's left edge: its button reaches 6 points past the icon, and the
-/// B starts 3.5 points into its box.
+/// The toolbar's pin: it pins the note to the top of the tree, or unpins it. The accent marks a
+/// pinned note.
+fn pin_button(v: V) -> El {
+    use super::widgets::PIN;
+    let p = v.p;
+    let on = v.s.active.as_deref().is_some_and(|a| v.s.is_pinned(a));
+    let help = if on { "Unpin" } else { "Pin to the top of the tree" };
+    row()
+        .key("fmt-pin")
+        .size(28.0, 28.0)
+        .center()
+        .radius(6.0)
+        .hover(p.hover)
+        .hover_group()
+        .role("button")
+        .label(help)
+        .help(help)
+        .on_press(|s: &mut App| {
+            if let Some(a) = s.active.clone() {
+                s.toggle_pin(&a);
+            }
+        })
+        .child(icon(&PIN, 16.0).color(if on { p.acc } else { p.mute }).group_color(if on { p.acc } else { p.ink }))
+}
+
 /// The formatting toolbar: a pill at the top of the note column. It scrolls with the note
 /// until it reaches TOOLBAR_TOP below the title bar, then stays there, and the note scrolls
 /// under it.
@@ -225,6 +247,7 @@ fn toolbar(v: V) -> El {
         .child(sep("sep-3"))
         .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)))
         .child(sep("sep-4"))
+        .child(pin_button(v))
         .child(lock_button(v))
 }
 

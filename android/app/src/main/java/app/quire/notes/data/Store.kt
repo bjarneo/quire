@@ -71,6 +71,10 @@ data class Session(
     val active: String? = null,
     val recent: List<String> = emptyList(),
     val expanded: Set<String> = emptySet(),
+    /** Pinned notes, in the order they were pinned. They stay on this phone and do not sync. */
+    val pinned: List<String> = emptyList(),
+    /** The Pinned group of the tree is open. */
+    val pinsOpen: Boolean = true,
 )
 
 private fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
@@ -200,6 +204,8 @@ class Store(ctx: Context) {
             active = if (o.isNull("active")) null else o.optString("active"),
             recent = o.optJSONArray("recent")?.strings() ?: emptyList(),
             expanded = o.optJSONArray("expanded")?.strings()?.toSet() ?: emptySet(),
+            pinned = o.optJSONArray("pinned")?.strings() ?: emptyList(),
+            pinsOpen = !o.optBoolean("pinsClosed", false),
         )
     } catch (e: Exception) {
         Session()
@@ -211,6 +217,8 @@ class Store(ctx: Context) {
             .put("active", s.active ?: JSONObject.NULL)
             .put("recent", s.recent.json())
             .put("expanded", s.expanded.toList().json())
+            .put("pinned", s.pinned.json())
+            .put("pinsClosed", !s.pinsOpen)
         sp.edit().putString("session.$id", o.toString()).apply()
     }
 
