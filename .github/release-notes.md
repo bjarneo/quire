@@ -1,28 +1,25 @@
-Quire 0.5.4 updates itself and syncs pins between devices.
+Quire 0.5.5 fixes line breaks in the preview and moves the desktop toolbar to the bottom of the note.
 
 ## Download
 
 | Platform | File | How to start it |
 | --- | --- | --- |
-| Linux, x86-64 | `quire-0.5.4-linux-x86_64.tar.gz` | Unpack it and run `./install.sh`. Then open Quire from the app launcher, or run `quire`. |
-| macOS, Apple silicon | `quire-0.5.4-macos-arm64.zip` | Unzip it and move `Quire.app` to Applications. The app is not notarized, so right-click it and choose **Open** the first time. |
-| Windows, x86-64 | `quire-0.5.4-windows-x86_64.zip` | Unzip it and run `quire.exe`. The app is not signed, so Windows SmartScreen can warn you. Choose **More info**, then **Run anyway**. |
-| Android 8.0 and later | `quire-0.5.4-android.apk` | Open the file on your phone and allow the install. |
+| Linux, x86-64 | `quire-0.5.5-linux-x86_64.tar.gz` | Unpack it and run `./install.sh`. Then open Quire from the app launcher, or run `quire`. |
+| macOS, Apple silicon | `quire-0.5.5-macos-arm64.zip` | Unzip it and move `Quire.app` to Applications. The app is not notarized, so right-click it and choose **Open** the first time. |
+| Windows, x86-64 | `quire-0.5.5-windows-x86_64.zip` | Unzip it and run `quire.exe`. The app is not signed, so Windows SmartScreen can warn you. Choose **More info**, then **Run anyway**. |
+| Android 8.0 and later | `quire-0.5.5-android.apk` | Open the file on your phone and allow the install. |
 
 The Linux build needs Wayland or X11 with Vulkan. The macOS and Windows builds come from CI and are not tested on those systems yet. Please open an issue if they do not start.
 
-This is the last release that you install by hand. From 0.5.4 on, Quire tells you when a new version is out.
+With 0.5.4 or later, select **Update** at the top right to install this version.
 
-## New
+## Changed
 
-- **Update button.** When a newer release is out, an **Update** button shows at the top right.
-  - On Linux, macOS and Windows, select it, and Quire downloads the new version, checks that it runs, puts it in place and restarts.
-  - On Android, Quire downloads the APK and opens the system installer. The first time, Android asks you to allow installs from Quire.
-- Quire checks GitHub when it starts and every 6 hours. Settings, Files & links has **Check for updates** and **Check now**. The check sends no personal data.
-- **Pins sync.** Pinned notes now sync between your devices with the notes. A pin that you add or remove on one device is added or removed on the others. A device with an older version keeps its pins.
-- `quire --version` prints the version.
+- On the desktop, the formatting toolbar floats at the bottom of the note, in the middle. The note scrolls under it, and the text fades out at the bottom. The caret stays above the toolbar while you type. A click beside the toolbar reaches the text under it.
 
-## Notes
+## Fixed
 
-- If Quire cannot write to its own folder, for example `/usr/bin`, **Update** opens the release page.
-- An Android app that you installed from a computer with Android Studio or `adb` is a debug build. It does not check for updates, because a release APK cannot install over a debug build.
+- The preview keeps each line break as you typed it. Before, the lines of a paragraph or a quote joined into one line.
+- A `\` or two spaces at the end of a line no longer show in the preview. The line breaks there.
+- A line under a list item stays in that item. Before, it dropped out of the list as its own paragraph.
+- The Android preview has the same fixes.
