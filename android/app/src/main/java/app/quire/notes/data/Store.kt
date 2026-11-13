@@ -52,6 +52,8 @@ data class Settings(
     val updateLinks: Boolean = true,
     val newFolder: String = "",
     val sync: SyncSettings = SyncSettings(),
+    /** Look for a newer release of Quire. Release builds only. */
+    val checkUpdates: Boolean = true,
 )
 
 enum class VaultKind { LOCAL, SAF }
@@ -133,6 +135,7 @@ class Store(ctx: Context) {
             typewriter = o.optBoolean("typewriter", d.typewriter),
             updateLinks = o.optBoolean("updateLinks", d.updateLinks),
             newFolder = o.optString("newFolder", d.newFolder),
+            checkUpdates = o.optBoolean("checkUpdates", d.checkUpdates),
             sync = SyncSettings(
                 provider = sy?.optString("provider", "none") ?: "none",
                 cfg = cfg,
@@ -159,6 +162,7 @@ class Store(ctx: Context) {
             .put("previewFont", s.previewFont).put("spellcheck", s.spellcheck).put("continueLists", s.continueLists)
             .put("dimFocus", s.dimFocus).put("typewriter", s.typewriter).put("updateLinks", s.updateLinks)
             .put("newFolder", s.newFolder)
+            .put("checkUpdates", s.checkUpdates)
             .put(
                 "sync", JSONObject().put("provider", s.sync.provider).put("when", s.sync.whenSync)
                     .put("encrypt", s.sync.encrypt).put("cfg", cfg)

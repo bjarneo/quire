@@ -33,6 +33,8 @@ pub struct Settings {
     pub toolbar: bool,
     pub update_links: bool,
     pub new_folder: String,
+    /// Ask GitHub for new releases, and show the Update button.
+    pub check_updates: bool,
     pub sync: Sync,
     pub mcp: Mcp,
 }
@@ -55,6 +57,7 @@ impl Default for Settings {
             toolbar: true,
             update_links: true,
             new_folder: String::new(),
+            check_updates: true,
             sync: Sync::default(),
             mcp: Mcp::default(),
         }
@@ -189,6 +192,8 @@ pub struct Persist {
     pub settings: Settings,
     /// Set once the sample folder exists, so deleting it does not bring it back.
     pub seeded: bool,
+    /// The version that installed an update and restarted. The new version reads it once.
+    pub updated_from: Option<String>,
 }
 
 impl Default for Persist {
@@ -202,6 +207,7 @@ impl Default for Persist {
             right_open: true,
             settings: Settings::default(),
             seeded: false,
+            updated_from: None,
         }
     }
 }

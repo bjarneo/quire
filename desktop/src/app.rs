@@ -110,6 +110,8 @@ pub struct App {
     pub sync_status: SyncStatus,
     pub mcp_copied: bool,
     pub notice: Option<String>,
+    /// The update check and the update itself (`update.rs`).
+    pub update: crate::update::UpdateState,
     pub writer: Writer,
     pub(crate) dirty: BTreeSet<String>,
     save_at: Option<f64>,
@@ -192,6 +194,7 @@ pub fn init() -> App {
         sync_status: SyncStatus::Idle,
         mcp_copied: false,
         notice: None,
+        update: Default::default(),
         writer,
         dirty: BTreeSet::new(),
         save_at: None,
@@ -222,6 +225,13 @@ pub fn init() -> App {
         unlock_error: None,
     };
     crate::theme::reload_omarchy();
+    crate::update::clean_up();
+    if let Some(from) = app.persist.updated_from.take() {
+        if from != crate::update::CURRENT {
+            app.notice = Some(format!("Quire is updated to {}.", crate::update::CURRENT));
+        }
+        app.persist_later();
+    }
     // The remote folder used to be one value for every notes folder. Each folder has its own now.
     for c in app.persist.settings.sync.cfg.values_mut() {
         c.remove("prefix");
@@ -422,6 +432,7 @@ impl App {
         changed |= self.check_link_click(tx);
         changed |= self.apply_outside_changes();
         changed |= self.poll_sync(t, tx);
+        changed |= self.poll_update(t, tx);
         changed |= self.images.poll();
         if self.theme_changed.as_ref().is_some_and(|f| f.swap(false, std::sync::atomic::Ordering::SeqCst)) {
             changed |= crate::theme::reload_omarchy();

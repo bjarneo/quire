@@ -49,7 +49,7 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - Creates a note inside a folder: use the `+` on the folder's row, right-click the folder, or type `Folder/Name` in the quick switcher. A path creates the folders it names.
 - Moves a note into a folder when you drag it onto the folder. Drop it on the folder name or on empty space to move it to the root. Links that spell out the old folder follow the note.
 - Moves deleted notes to `.trash` inside the folder.
-- Pins a note to the Pinned group at the top of the tree. Right-click the note and select **Pin**, drag it onto the group, select the pin button in the toolbar, or use "Pin note" in the command palette. The file stays in its folder. The tree shows the folder name next to the pinned note. Pins are saved for each notes folder in `state.json` and do not sync.
+- Pins a note to the Pinned group at the top of the tree. Right-click the note and select **Pin**, drag it onto the group, select the pin button in the toolbar, or use "Pin note" in the command palette. The file stays in its folder. The tree shows the folder name next to the pinned note. Pins sync with the notes folder when sync is on. Without sync, they are saved in `state.json`.
 - Deletes a folder from its right-click menu. A folder with notes asks first. The folder moves to `.trash` with every file in it, so you can get it back.
 - Picks up changes that other apps make to the folder while Quire is open.
 
@@ -66,6 +66,17 @@ The script puts the binary in `~/.local/bin/quire`, the icon in `~/.local/share/
 - On macOS the shortcuts use `⌘` in place of `Ctrl`.
 
 On first launch Quire writes a sample folder, Field Notes, to `~/Documents/Field Notes`. If that folder already exists, the sample goes to Quire's data folder instead. Settings and open tabs live in `state.json` in Quire's config folder, `~/.config/quire/` on Linux, never in a notes folder.
+
+### Updates
+
+- Quire asks GitHub for the latest release when it starts and every 6 hours. When a newer version is out, an **Update** button shows at the top right of the title bar.
+- Select **Update**, and Quire downloads the release file for your system and runs the new binary once to check it. Then it puts the new version in place of the old one and restarts.
+  - On Linux, Quire replaces the `quire` binary.
+  - On macOS, it replaces `Quire.app`.
+  - On Windows, it replaces `quire.exe`.
+- If Quire cannot write to its own folder, for example `/usr/bin`, **Update** opens the release page.
+- To turn off the check, go to Settings, Files & links, and turn off **Check for updates**. **Check now** asks at once. The check sends no personal data, only the user agent `quire-updater`.
+- To print the version, run `quire --version`.
 
 ## MCP server
 

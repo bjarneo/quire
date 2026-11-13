@@ -33,6 +33,7 @@ impl App {
             self.pinned.push(path.to_string());
             self.pins_open = true;
             self.persist_later();
+            self.sync_auto(1.5);
         }
     }
 
@@ -41,6 +42,7 @@ impl App {
         self.pinned.retain(|p| p != path);
         if self.pinned.len() != n {
             self.persist_later();
+            self.sync_auto(1.5);
         }
     }
 
