@@ -14,6 +14,17 @@ data class FmtEdit(val start: Int, val end: Int, val insert: String, val selStar
  * desktop/src/format.rs, so both apps follow the same rules.
  */
 object Format {
+    /**
+     * Dictated [words] for the caret at [at]: a space goes before them when the caret follows
+     * a word or a punctuation mark.
+     */
+    fun spoken(text: String, at: Int, words: String): String {
+        val w = words.trim()
+        if (w.isEmpty()) return ""
+        val before = text.getOrNull(at - 1)
+        return if (before == null || before.isWhitespace()) w else " $w"
+    }
+
     fun apply(text: String, a: Int, b: Int, f: Fmt): FmtEdit {
         val s = minOf(a, b).coerceIn(0, text.length)
         val e = maxOf(a, b).coerceIn(0, text.length)

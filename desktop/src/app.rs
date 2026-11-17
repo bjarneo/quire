@@ -112,6 +112,8 @@ pub struct App {
     pub notice: Option<String>,
     /// The update check and the update itself (`update.rs`).
     pub update: crate::update::UpdateState,
+    /// The toolbar's dictation button (`dictation.rs`).
+    pub dictation: crate::dictation::Dictation,
     pub writer: Writer,
     pub(crate) dirty: BTreeSet<String>,
     save_at: Option<f64>,
@@ -195,6 +197,7 @@ pub fn init() -> App {
         mcp_copied: false,
         notice: None,
         update: Default::default(),
+        dictation: crate::dictation::Dictation::new(),
         writer,
         dirty: BTreeSet::new(),
         save_at: None,
@@ -435,6 +438,7 @@ impl App {
         changed |= self.poll_sync(t, tx);
         changed |= self.poll_update(t, tx);
         changed |= self.images.poll();
+        changed |= self.poll_dictation(tx);
         if self.theme_changed.as_ref().is_some_and(|f| f.swap(false, std::sync::atomic::Ordering::SeqCst)) {
             changed |= crate::theme::reload_omarchy();
         }
@@ -1111,6 +1115,43 @@ impl App {
         });
         self.after_edit();
         self.focus_editor(tx);
+    }
+
+    /// The toolbar's microphone. The editor keeps the focus, so the words land at its caret.
+    pub fn dictate(&mut self, tx: &mut Tx) {
+        let Some(kind) = self.dictation.kind else { return };
+        if self.active.is_none() || self.mode != Mode::Source || self.active.as_deref().is_some_and(|a| self.note_locked(a)) {
+            return;
+        }
+        self.focus_editor(tx);
+        match kind {
+            // macOS dictation starts after the frame that resets the input method.
+            crate::dictation::Kind::Mac => {
+                self.dictation.start_at = Some(Instant::now() + crate::dictation::MAC_DELAY);
+                tx.wake_after(crate::dictation::MAC_DELAY);
+            }
+            crate::dictation::Kind::Omarchy => self.dictation.run(self.waker.clone()),
+        }
+    }
+
+    /// Starts macOS dictation when it is due, and shows a failed start.
+    fn poll_dictation(&mut self, tx: &mut Tx) -> bool {
+        if let Some(due) = self.dictation.start_at {
+            let now = Instant::now();
+            if now >= due {
+                self.dictation.start_at = None;
+                self.dictation.run(None);
+            } else {
+                tx.wake_after(due - now);
+            }
+        }
+        match self.dictation.take_error() {
+            Some(m) => {
+                self.notice = Some(m);
+                true
+            }
+            None => false,
+        }
     }
 
     /// Saves everything, then closes the window.

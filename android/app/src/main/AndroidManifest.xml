@@ -7,6 +7,14 @@
     <!-- The Update button gives a downloaded release to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- The Dictate button opens the voice input of Android. Android 11 and later show Quire
+         the apps that take voice input only when it asks for them here. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <!-- A self-hosted S3 server on the local network can use plain http, as on the desktop. -->
     <application
         android:usesCleartextTraffic="true"

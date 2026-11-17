@@ -67,4 +67,15 @@ class FormatTest {
         }
         assertEquals(listOf("# Plan|", "## Plan|", "### Plan|", "Plan|"), seen)
     }
+
+    /** Dictated words get a space after a word, and none at the start of a line. */
+    @Test
+    fun spokenWordsGetASpace() {
+        assertEquals("hello there", Format.spoken("", 0, " hello there "))
+        assertEquals(" more", Format.spoken("Some text", 9, "more"))
+        assertEquals(" more", Format.spoken("Done.", 5, "more"))
+        assertEquals("more", Format.spoken("Line\n", 5, "more"))
+        assertEquals("more", Format.spoken("a ", 2, "more"))
+        assertEquals("", Format.spoken("a", 1, "  "))
+    }
 }

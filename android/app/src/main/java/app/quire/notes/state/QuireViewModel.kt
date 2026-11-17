@@ -1024,12 +1024,16 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
     fun wrapSelection(mk: String) = format(if (mk == "**") "bold" else "italic")
 
     /** The actions of the Markdown toolbar, in its order. */
-    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image", "pin", "lock")
+    val toolbar = listOf("bold", "italic", "strike", "heading", "link", "noteLink", "bullet", "number", "task", "quote", "code", "image", "dictate", "pin", "lock")
 
     /** Runs one action of the Markdown toolbar on the selection of the editor. */
     fun format(action: String) {
         if (action == "image") {
             requestImagePick()
+            return
+        }
+        if (action == "dictate") {
+            requestDictation()
             return
         }
         if (action == "lock") {
@@ -1066,6 +1070,25 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         val a = v.selection.min
         val b = v.selection.max
         applyEdit(TextFieldValue(v.text.substring(0, a) + s + v.text.substring(b), TextRange(a + s.length)))
+    }
+
+    /** True when the voice input of Android must open. The screen opens it and sets this back. */
+    var dictate by mutableStateOf(false)
+
+    /** Opens the voice input of Android for the active note. */
+    fun requestDictation() {
+        val a = active ?: return
+        if (noteLocked(a)) return
+        dictate = true
+    }
+
+    /** Puts the words from the voice input at the caret, and gives the editor the focus again. */
+    fun insertDictation(words: String) {
+        val a = active ?: return
+        if (noteLocked(a) || mode != Mode.Source) return
+        val s = Format.spoken(editor.text, editor.selection.min, words)
+        if (s.isNotEmpty()) insertText(s)
+        pendingEditorFocus = true
     }
 
     fun caretToEnd() {

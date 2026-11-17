@@ -77,6 +77,8 @@ object QIcons {
     const val PIN = "M5.5 2.5h5M6.5 2.5v3.9L4.5 9h7l-2-2.6V2.5M8 9v4.5"
     /** A padlock, for locked notes. */
     const val LOCK = "M5 7h6a1.6 1.6 0 0 1 1.6 1.6v3.4a1.6 1.6 0 0 1-1.6 1.6H5a1.6 1.6 0 0 1-1.6-1.6V8.6A1.6 1.6 0 0 1 5 7zM5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"
+    /** Dictation: a microphone. The path of the desktop app. */
+    const val MIC = "M8 1.75a2.25 2.25 0 0 1 2.25 2.25v3.5a2.25 2.25 0 0 1-4.5 0V4A2.25 2.25 0 0 1 8 1.75zM3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2"
     /** Insert image: a frame with a hill and a sun. */
     const val IMAGE = "M3.5 2.5h9a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V4a1.5 1.5 0 0 1 1.5-1.5zM2.3 11.2l3.4-3.4 2.8 2.8 1.8-1.8 3.4 3.4M9.6 5.8a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0"
 }

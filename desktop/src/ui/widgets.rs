@@ -39,6 +39,8 @@ svg!(QUOTE, 16.0, r#"<path d="M3.2 3v10M6.4 4.6h7M6.4 8h7M6.4 11.4h4.6" fill="no
 svg!(LOCK, 16.0, r#"<rect x="3.4" y="7" width="9.2" height="6.6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>"#);
 // A picture with a hill and a sun: insert an image.
 svg!(IMAGE, 16.0, r#"<rect x="2" y="3" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="6.2" r="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.6 11.6l3.6-3.7 2.6 2.6 1.6-1.5 3 2.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/>"#);
+// A microphone: dictation.
+svg!(MIC, 16.0, r#"<rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.25 7.5a4.75 4.75 0 0 0 9.5 0M8 12.25v2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>"#);
 // Four corners of a frame: focus mode.
 svg!(FOCUS, 16.0, r#"<path d="M2.5 6V4a1.5 1.5 0 0 1 1.5-1.5h2M10 2.5h2A1.5 1.5 0 0 1 13.5 4v2M13.5 10v2a1.5 1.5 0 0 1-1.5 1.5h-2M6 13.5H4A1.5 1.5 0 0 1 2.5 12v-2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#);
 svg!(CODE, 16.0, r#"<path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>"#);

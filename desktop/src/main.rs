@@ -6,6 +6,7 @@
 mod app;
 mod cli;
 mod commands;
+mod dictation;
 mod folders;
 mod format;
 mod html2md;
@@ -254,6 +255,66 @@ mod lock_tests {
             s.writer.wait(std::time::Duration::from_secs(5));
             let disk = std::fs::read_to_string(s.vault.as_ref().unwrap().path.join(&a)).unwrap();
             assert_eq!(disk, "# Secret\n\nThe code is 1234.");
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod dictation_tests {
+    use rune::{Env, Runtime};
+
+    use crate::dictation::{Kind, MAC_DELAY};
+
+    /// The microphone shows only where the system has dictation. A press keeps the editor
+    /// focused, so the words land at its caret. macOS dictation starts after the next frame.
+    #[test]
+    fn the_microphone_starts_dictation() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-dictate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let mut rt = Runtime::new(crate::app::init(), crate::ui::view, (1280.0, 800.0), Env { system_dark: false, scale: 1.0 });
+        rt.update(|s, _| s.mode = crate::app::Mode::Source);
+        for _ in 0..3 {
+            rt.frame(1.0 / 60.0);
+        }
+        assert!(rt.find("fmt-image").is_some(), "the toolbar shows");
+        assert!(rt.find("fmt-dictate").is_none(), "no dictation, no button");
+
+        let press = |rt: &mut Runtime<crate::app::App>| {
+            let (x, y) = rt.find("fmt-dictate").expect("the button shows");
+            rt.pointer_move(x, y);
+            rt.pointer_down(x, y);
+            rt.pointer_up(x, y);
+            rt.frame(1.0 / 60.0);
+        };
+        rt.update(|s, _| s.dictation.kind = Some(Kind::Omarchy));
+        rt.frame(1.0 / 60.0);
+        press(&mut rt);
+        rt.update(|s, tx| {
+            assert_eq!(s.dictation.runs, 1, "Omarchy dictation starts at once");
+            assert_eq!(tx.focused(), Some("editor"), "the editor keeps the focus");
+        });
+
+        rt.update(|s, _| s.dictation.kind = Some(Kind::Mac));
+        rt.frame(1.0 / 60.0);
+        press(&mut rt);
+        rt.update(|s, tx| {
+            assert_eq!(s.dictation.runs, 1, "macOS dictation waits for the next frame");
+            assert!(s.dictation.start_at.is_some());
+            assert_eq!(tx.focused(), Some("editor"));
+        });
+        std::thread::sleep(MAC_DELAY + std::time::Duration::from_millis(20));
+        rt.update(|s, tx| {
+            s.poll(10.0, tx);
+            assert_eq!(s.dictation.runs, 2, "macOS dictation starts after the delay");
+            assert!(s.dictation.start_at.is_none());
         });
         let _ = std::fs::remove_dir_all(&dir);
     }

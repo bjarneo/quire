@@ -1,5 +1,9 @@
 package app.quire.notes.ui
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -80,6 +84,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
@@ -122,6 +127,22 @@ fun VaultScreen(vm: QuireViewModel) {
         if (vm.pickImage) {
             vm.pickImage = false
             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+    }
+
+    // Dictate opens the voice input of Android. Its words go in at the caret.
+    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val words = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (r.resultCode == Activity.RESULT_OK && words != null) vm.insertDictation(words) else vm.pendingEditorFocus = true
+    }
+    LaunchedEffect(vm.dictate) {
+        if (vm.dictate) {
+            vm.dictate = false
+            try {
+                voice.launch(voiceIntent())
+            } catch (e: ActivityNotFoundException) {
+                vm.flash("This phone has no voice input.")
+            }
         }
     }
 
@@ -619,7 +640,10 @@ private fun MarkdownBar(vm: QuireViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val unlocked = vm.active?.let { it in vm.unlocked } == true
-        vm.toolbar.forEach { a ->
+        // Dictate shows only when an app on the phone takes voice input.
+        val context = LocalContext.current
+        val canDictate = remember { voiceIntent().resolveActivity(context.packageManager) != null }
+        vm.toolbar.filter { it != "dictate" || canDictate }.forEach { a ->
             val label = toolLabel(a)
             // The Lock button shows as active while the note is unlocked. A tap locks it again.
             // The Pin button shows as active while the note is pinned.
@@ -636,6 +660,10 @@ private fun MarkdownBar(vm: QuireViewModel) {
     }
 }
 
+/** The voice input of Android: free speech in the language of the phone. */
+private fun voiceIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+
 private fun toolLabel(a: String) = when (a) {
     "bold" -> "Bold"
     "italic" -> "Italic"
@@ -650,6 +678,7 @@ private fun toolLabel(a: String) = when (a) {
     "code" -> "Code"
     "lock" -> "Lock"
     "pin" -> "Pin"
+    "dictate" -> "Dictate"
     else -> "Image"
 }
 
@@ -670,6 +699,7 @@ private fun ToolGlyph(a: String, c: QColors, on: Boolean = false) {
         "code" -> QIcon(QIcons.CODE, 16f, 16.dp, 1.3f, ink)
         "lock" -> QIcon(QIcons.LOCK, 16f, 16.dp, 1.3f, lockColor(c, on))
         "pin" -> QIcon(QIcons.PIN, 16f, 16.dp, 1.25f, lockColor(c, on))
+        "dictate" -> QIcon(QIcons.MIC, 16f, 16.dp, 1.3f, ink)
         else -> QIcon(QIcons.IMAGE, 16f, 16.dp, 1.25f, ink)
     }
 }

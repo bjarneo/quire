@@ -199,7 +199,7 @@ fn toolbar_dock(v: V) -> El {
 /// The formatting toolbar: a pill that floats over the bottom of the note. The note scrolls
 /// under it.
 fn toolbar(v: V) -> El {
-    use super::widgets::{BOLD, BULLETS, CODE, HEADING, IMAGE, ITALIC, LINK, NUMBERS, QUOTE, STRIKE, TASK, WIKI, icon_button};
+    use super::widgets::{BOLD, BULLETS, CODE, HEADING, IMAGE, ITALIC, LINK, MIC, NUMBERS, QUOTE, STRIKE, TASK, WIKI, icon_button};
     use crate::format::Fmt;
     let p = v.p;
     let k = crate::keys::k;
@@ -208,7 +208,7 @@ fn toolbar(v: V) -> El {
     // No border: a shadow lifts the toolbar off the page. On a dark page a shadow hardly shows,
     // so the toolbar is a little lighter than the page there.
     let (fill, near, far) = if p.dark { (p.bg.mix(p.ink, 0.05), 0.45, 0.55) } else { (p.bg, 0.08, 0.14) };
-    row()
+    let bar = row()
         .key("toolbar")
         .h(TOOLBAR_H)
         .px(4.0)
@@ -238,10 +238,13 @@ fn toolbar(v: V) -> El {
         .child(btn("fmt-quote", &QUOTE, "Quote".into(), Fmt::Quote))
         .child(btn("fmt-code", &CODE, "Code".into(), Fmt::Code))
         .child(sep("sep-3"))
-        .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)))
-        .child(sep("sep-4"))
-        .child(pin_button(v))
-        .child(lock_button(v))
+        .child(icon_button(p, "fmt-image", &IMAGE, 16.0, &format!("Insert an image ({})", k(&["Mod", "Shift", "I"]))).on_press_tx(|s: &mut App, tx| s.pick_image(tx)));
+    // Only macOS and Omarchy have dictation that the button can start.
+    let bar = match v.s.dictation.kind {
+        Some(kind) => bar.child(icon_button(p, "fmt-dictate", &MIC, 16.0, kind.help()).on_press_tx(|s: &mut App, tx| s.dictate(tx))),
+        None => bar,
+    };
+    bar.child(sep("sep-4")).child(pin_button(v)).child(lock_button(v))
 }
 
 fn crumb(v: V) -> El {
