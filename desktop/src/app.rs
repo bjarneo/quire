@@ -412,7 +412,9 @@ impl App {
     pub fn poll(&mut self, t: f64, tx: &mut Tx) -> bool {
         self.now.set(t);
         let now = Instant::now();
-        let mut changed = false;
+        // Changes from other apps come first. A note with unsaved edits is still marked, so its
+        // edits win over a change read at the same moment.
+        let mut changed = self.apply_outside_changes();
         if self.save_at.is_some_and(|due| t >= due) {
             self.flush_notes();
         } else if let Some(due) = self.save_at {
@@ -430,7 +432,6 @@ impl App {
         }
         changed |= self.sync_mcp_http();
         changed |= self.check_link_click(tx);
-        changed |= self.apply_outside_changes();
         changed |= self.poll_sync(t, tx);
         changed |= self.poll_update(t, tx);
         changed |= self.images.poll();
@@ -459,8 +460,8 @@ impl App {
     }
 
     /// Takes changes other apps made to the folder. A note with edits not yet saved keeps
-    /// the edits; they overwrite the outside change when they save.
-    fn apply_outside_changes(&mut self) -> bool {
+    /// the edits. They overwrite the outside change when they save.
+    pub(crate) fn apply_outside_changes(&mut self) -> bool {
         let Some(w) = &self.watcher else { return false };
         let c = match w.inbox.lock() {
             Ok(mut b) => std::mem::take(&mut *b),
@@ -470,8 +471,14 @@ impl App {
             return false;
         }
         let mut any = false;
+        let root = self.vault.as_ref().map(|v| v.path.clone()).unwrap_or_default();
         for (rel, text) in c.changed {
             if self.dirty.contains(&rel) || self.files().get(&rel) == Some(&text) {
+                continue;
+            }
+            // Quire's own save, read back by the watcher. The editor can already hold newer
+            // words, and the old text must not replace them.
+            if self.writer.saved_here(&root, &rel, &text) {
                 continue;
             }
             if self.unlocked.contains_key(&rel) {
@@ -1219,4 +1226,68 @@ fn long_date(year: i32, month: u32, day: u32) -> String {
     let y = if month < 3 { year - 1 } else { year };
     let w = (y + y / 4 - y / 100 + y / 400 + T[(month as usize + 11) % 12] + day as i32).rem_euclid(7);
     format!("{} {} {}", DAYS[w as usize], day, MONTHS[(month as usize + 11) % 12])
+}
+
+#[cfg(test)]
+mod watch_race_tests {
+    use rune::{Env, Runtime};
+
+    /// The folder watcher reads Quire's own saves back. A read that is one save behind must not
+    /// put the older text into the editor while the user types.
+    #[test]
+    fn an_old_save_does_not_undo_typing() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-watchrace-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let root = dir.join("notes");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("Draft.md"), "one").unwrap();
+        let mut rt = Runtime::new(super::init(), crate::ui::view, (1280.0, 800.0), Env { system_dark: false, scale: 1.0 });
+        rt.update(|s, tx| {
+            s.open_vault(root.clone(), tx);
+            s.watcher = Some(crate::watch::Watcher::idle());
+            s.mode = super::Mode::Source;
+            s.open_file("Draft.md", None, tx);
+            let type_text = |s: &mut super::App, t: &str| {
+                s.cur_edit().replace_text(t.to_string());
+                s.after_edit();
+            };
+            let feed = |s: &super::App, t: &str| {
+                let w = s.watcher.as_ref().unwrap();
+                w.inbox.lock().unwrap().changed.push(("Draft.md".into(), t.into()));
+            };
+
+            // The first save lands, and the watcher reads it a moment later.
+            type_text(s, "one two");
+            s.flush_notes();
+            s.writer.wait(std::time::Duration::from_secs(5));
+            feed(s, "one two");
+            // More typing saves before the app takes the watcher's read.
+            type_text(s, "one two three");
+            s.flush_notes();
+            s.apply_outside_changes();
+            assert_eq!(s.active_text(), "one two three", "the editor keeps the newer words");
+            assert_eq!(s.files()["Draft.md"], "one two three");
+
+            // The same read while the newer save waits in the writer queue.
+            type_text(s, "one two three four");
+            feed(s, "one two three");
+            s.flush_notes();
+            s.apply_outside_changes();
+            assert_eq!(s.active_text(), "one two three four");
+
+            // A change another app makes still comes in.
+            s.writer.wait(std::time::Duration::from_secs(5));
+            feed(s, "edited in another app");
+            assert!(s.apply_outside_changes());
+            assert_eq!(s.active_text(), "edited in another app");
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

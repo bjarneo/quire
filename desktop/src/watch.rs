@@ -51,6 +51,14 @@ fn snapshot(root: &PathBuf) -> BTreeMap<String, (SystemTime, u64)> {
     out
 }
 
+impl Watcher {
+    /// A watcher with no thread, for tests that fill the inbox themselves.
+    #[cfg(test)]
+    pub fn idle() -> Watcher {
+        Watcher { inbox: Arc::default(), stop: Arc::new(AtomicBool::new(true)) }
+    }
+}
+
 pub fn start(root: PathBuf, waker: Option<rune::Waker>) -> Watcher {
     let inbox: Arc<Mutex<Changes>> = Arc::default();
     let stop = Arc::new(AtomicBool::new(false));

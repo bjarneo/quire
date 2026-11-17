@@ -181,6 +181,16 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
 
     private val dirty = LinkedHashSet<String>()
 
+    // Counts note edits. A read of the folder that started before an edit keeps the edited text,
+    // because the read can be one save behind the editor.
+    private var edits = 0L
+    private val editedAt = HashMap<String, Long>()
+
+    private fun markDirty(p: String) {
+        dirty.add(p)
+        editedAt[p] = ++edits
+    }
+
     // Notes that move on disk right now. Their edits wait until the move is done.
     private val moving = HashSet<String>()
     private var saveJob: Job? = null
@@ -421,6 +431,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         val f = fs ?: return
         val v = vault ?: return
         if (screen != Screen.Vault) return
+        val since = edits
         viewModelScope.launch {
             val loaded = try {
                 withContext(io) { f.load() }
@@ -431,6 +442,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (loaded.images != images) images = loaded.images
             val merged = LinkedHashMap(loaded.files)
             for (p in dirty) files[p]?.let { merged[p] = it }
+            // A note edited after the read started keeps its text, also when it saved meanwhile.
+            for ((p, n) in editedAt) if (n > since) files[p]?.let { merged[p] = it }
             if (merged == files && loaded.folders == folders) return@launch
             // An unlocked note that changed on disk opens with the key in memory, or locks again.
             for (p in unlocked.keys.toList()) {
@@ -482,7 +495,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             if (noteLocked(path)) return
             files = files + (path to text)
         }
-        dirty.add(path)
+        markDirty(path)
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(500)
@@ -780,8 +793,8 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         if (active == old) active = np
         // The open note may be the moved one or one whose links changed. The editor must show the new text.
         active?.let { a -> (unlocked[a]?.text ?: nf[a])?.let { t -> if (editor.text != t) editor = TextFieldValue(t, shiftSelection(editor, t)) } }
-        if (wasDirty) dirty.add(np)
-        dirty.addAll(changed)
+        if (wasDirty) markDirty(np)
+        changed.forEach { markDirty(it) }
         flushAll()
         persistSession()
     }
@@ -959,7 +972,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             rename(old, np)
             if (writeActive) write(np, activeText)
         }
-        dirty.addAll(changed)
+        changed.forEach { markDirty(it) }
         flushAll()
         persistSession()
     }
@@ -1512,7 +1525,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
             val text = textOf(a)
             unlocked = unlocked + (a to Unlocked(key, text))
             files = files + (a to Lock.seal(key, text))
-            dirty.add(a)
+            markDirty(a)
             flushAll()
             if (active == a && mode == Mode.Source) pendingEditorFocus = true
         }
@@ -1562,7 +1575,7 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         val u = unlocked[a] ?: return
         unlocked = unlocked - a
         files = files + (a to u.text)
-        dirty.add(a)
+        markDirty(a)
         flushAll()
     }
 

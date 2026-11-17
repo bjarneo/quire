@@ -1,9 +1,10 @@
 //! A notes folder on disk: reading it, and a writer thread that keeps disk work off the UI thread.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct Vault {
@@ -114,6 +115,22 @@ pub struct Writer {
     pub errors: Arc<Mutex<Vec<String>>>,
     /// How many operations failed since the start. It only goes up.
     pub failed: Arc<std::sync::atomic::AtomicUsize>,
+    /// The note texts this app sent to disk in the last minute, by file. The folder watcher
+    /// reads these saves back, and a read can be one save behind the editor.
+    own: Arc<Mutex<OwnSaves>>,
+}
+
+/// Each file's recent saves: the hash of the text and the time it was sent.
+type OwnSaves = HashMap<PathBuf, VecDeque<(u64, Instant)>>;
+
+/// How long the app knows a save as its own.
+const OWN_FOR: Duration = Duration::from_secs(60);
+
+fn text_hash(text: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut h);
+    h.finish()
 }
 
 impl Writer {
@@ -160,11 +177,35 @@ impl Writer {
                 }
             })
             .ok();
-        Writer { tx, errors, failed }
+        Writer { tx, errors, failed, own: Arc::default() }
     }
 
     pub fn send(&self, op: Op) {
+        if let Op::Write { root, rel, text } = &op
+            && let Ok(mut own) = self.own.lock()
+        {
+            let now = Instant::now();
+            own.retain(|_, v| {
+                v.retain(|(_, t)| now.duration_since(*t) < OWN_FOR);
+                !v.is_empty()
+            });
+            let v = own.entry(root.join(rel)).or_default();
+            v.push_back((text_hash(text), now));
+            if v.len() > 64 {
+                v.pop_front();
+            }
+        }
         let _ = self.tx.send(op);
+    }
+
+    /// True when this app saved `text` to `root/rel` in the last minute. The folder watcher
+    /// then reports the app's own save, not a change from another app.
+    pub fn saved_here(&self, root: &Path, rel: &str, text: &str) -> bool {
+        let h = text_hash(text);
+        let now = Instant::now();
+        self.own.lock().is_ok_and(|own| {
+            own.get(&root.join(rel)).is_some_and(|v| v.iter().any(|(x, t)| *x == h && now.duration_since(*t) < OWN_FOR))
+        })
     }
 }
 
@@ -185,7 +226,7 @@ pub fn write_note(root: &Path, rel: &str, text: &str) -> std::io::Result<()> {
 
 impl Writer {
     /// Waits, up to `max`, until every operation sent so far is done.
-    pub fn wait(&self, max: std::time::Duration) {
+    pub fn wait(&self, max: Duration) {
         let (tx, rx) = std::sync::mpsc::channel();
         self.send(Op::Barrier(tx));
         let _ = rx.recv_timeout(max);
