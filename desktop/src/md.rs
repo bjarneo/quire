@@ -281,6 +281,115 @@ pub fn list_line(ln: &str) -> Option<ListLine> {
     Some(ListLine { indent, marker, after, task, done, text, number })
 }
 
+/// Numbers the ordered list that holds line `at` again, one step apart from its first item.
+/// Only the items at the indent of line `at` change. Each change is the byte range of an old
+/// number in `text` and the new number, from first to last.
+pub fn renumber(text: &str, at: usize) -> Vec<(std::ops::Range<usize>, String)> {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Kind {
+        Item,
+        Inner,
+        Blank,
+        Text,
+        Stop,
+    }
+    let lines: Vec<&str> = text.split('\n').collect();
+    let Some(me) = lines.get(at).and_then(|l| list_line(l)) else { return Vec::new() };
+    if me.number.is_none() {
+        return Vec::new();
+    }
+    let ind = me.indent;
+    let kind = |l: &str| match list_line(l) {
+        Some(x) if x.indent == ind && x.number.is_some() => Kind::Item,
+        Some(x) if x.indent > ind => Kind::Inner,
+        Some(_) => Kind::Stop,
+        None if l.trim().is_empty() => Kind::Blank,
+        // A line indented past the marker belongs to an item, also a code fence.
+        None if l.len() - l.trim_start().len() > ind => Kind::Inner,
+        None if is_block_start(l) => Kind::Stop,
+        None => Kind::Text,
+    };
+    // A blank line stays in the list when an item, or text indented under one, comes next.
+    let next_is_item = |from: usize, up: bool| {
+        let mut i = from;
+        loop {
+            if up {
+                if i == 0 {
+                    return false;
+                }
+                i -= 1;
+            } else {
+                i += 1;
+                if i >= lines.len() {
+                    return false;
+                }
+            }
+            match kind(lines[i]) {
+                Kind::Blank => continue,
+                Kind::Item | Kind::Inner => return true,
+                Kind::Text => return up,
+                Kind::Stop => return false,
+            }
+        }
+    };
+    let mut first = at;
+    let mut below = Kind::Item;
+    let mut i = at;
+    while i > 0 {
+        i -= 1;
+        let k = kind(lines[i]);
+        let ok = match k {
+            Kind::Item | Kind::Inner | Kind::Text => true,
+            // Text under a blank line starts a paragraph after the list.
+            Kind::Blank => below != Kind::Text && next_is_item(i, true),
+            Kind::Stop => false,
+        };
+        if !ok {
+            break;
+        }
+        if k == Kind::Item {
+            first = i;
+        }
+        below = k;
+    }
+    let mut last = at;
+    let mut i = at + 1;
+    while i < lines.len() {
+        let k = kind(lines[i]);
+        let ok = match k {
+            Kind::Item | Kind::Inner | Kind::Text => true,
+            Kind::Blank => next_is_item(i, false),
+            Kind::Stop => false,
+        };
+        if !ok {
+            break;
+        }
+        last = i;
+        i += 1;
+    }
+    let mut starts = Vec::with_capacity(lines.len());
+    let mut off = 0;
+    for l in &lines {
+        starts.push(off);
+        off += l.len() + 1;
+    }
+    let mut out = Vec::new();
+    let mut n = None;
+    for (i, l) in lines.iter().enumerate().take(last + 1).skip(first) {
+        if kind(l) != Kind::Item {
+            continue;
+        }
+        let Some(x) = list_line(l) else { continue };
+        let Some((num, _)) = x.number else { continue };
+        let want = *n.get_or_insert(num);
+        n = Some(want + 1);
+        if num != want {
+            out.push((starts[i] + x.marker.start..starts[i] + x.marker.end - 1, want.to_string()));
+        }
+    }
+    out
+}
+
 /// A fence line opens or closes a code block: `^\s*(```|~~~)`.
 pub fn is_fence(ln: &str) -> bool {
     let t = ln.trim_start();
@@ -905,6 +1014,9 @@ pub fn blocks(text: &str) -> Vec<Block> {
         }
         if is_list(ln) {
             let mut items = Vec::new();
+            // The next number at each open level. A numbered list counts on from its first
+            // number, the way CommonMark does, so `1. 1. 1.` shows as 1, 2 and 3.
+            let mut levels: Vec<(usize, u64)> = Vec::new();
             while i < lines.len() {
                 let Some(l) = list_line(lines[i]) else { break };
                 let raw = lines[i];
@@ -922,7 +1034,31 @@ pub fn blocks(text: &str) -> Vec<Block> {
                     own.push(lines[i]);
                     i += 1;
                 }
-                items.push(Item { indent, marker: raw[l.marker.clone()].to_string(), task, done, text: join_lines(&own), line: item_line });
+                while levels.last().is_some_and(|(d, _)| *d > indent) {
+                    levels.pop();
+                }
+                let marker = match l.number {
+                    Some((n, delim)) => {
+                        let shown = match levels.last_mut() {
+                            Some((d, next)) if *d == indent => {
+                                *next += 1;
+                                *next - 1
+                            }
+                            _ => {
+                                levels.push((indent, n + 1));
+                                n
+                            }
+                        };
+                        format!("{shown}{delim}")
+                    }
+                    None => {
+                        if levels.last().is_some_and(|(d, _)| *d == indent) {
+                            levels.pop();
+                        }
+                        raw[l.marker.clone()].to_string()
+                    }
+                };
+                items.push(Item { indent, marker, task, done, text: join_lines(&own), line: item_line });
             }
             out.push(Block::List { line: start, items });
             continue;
@@ -956,6 +1092,49 @@ mod tests {
         assert!(l.done && l.task.is_some());
         assert_eq!(list_line("12. twelve").unwrap().number, Some((12, '.')));
         assert!(list_line("-nope").is_none());
+    }
+
+    /// Applies the changes from `renumber`, for the tests.
+    fn renumbered(text: &str, at: usize) -> String {
+        let mut t = text.to_string();
+        for (r, n) in renumber(text, at).into_iter().rev() {
+            t.replace_range(r, &n);
+        }
+        t
+    }
+
+    #[test]
+    fn lists_number_again() {
+        // The numbers from the report: one list, numbered from its first item.
+        assert_eq!(renumbered("1. a\n2. b\n3. c\n2. d\n2. e\n3. f", 4), "1. a\n2. b\n3. c\n4. d\n5. e\n6. f");
+        // A new item in the middle moves the items under it down.
+        assert_eq!(renumbered("1. a\n2. new\n2. b\n3. c", 1), "1. a\n2. new\n3. b\n4. c");
+        // The first number stays, and `)` stays.
+        assert_eq!(renumbered("5) a\n5) b", 1), "5) a\n6) b");
+        // Nested items, text under an item and blank lines between items stay in the list.
+        let t = "1. a\n   1. inner\n   1. inner\n   more\n\n1. b\nlazy\n1. c";
+        assert_eq!(renumbered(t, 0), "1. a\n   1. inner\n   1. inner\n   more\n\n2. b\nlazy\n3. c");
+        assert_eq!(renumbered(t, 1), "1. a\n   1. inner\n   2. inner\n   more\n\n1. b\nlazy\n1. c");
+        // A paragraph, a heading or a bullet list ends the list.
+        assert_eq!(renumbered("1. a\n\nText\n\n1. b", 4), "1. a\n\nText\n\n1. b");
+        assert_eq!(renumbered("1. a\n# H\n1. b", 2), "1. a\n# H\n1. b");
+        assert_eq!(renumbered("1. a\n- x\n1. b", 2), "1. a\n- x\n1. b");
+        assert_eq!(renumbered("Intro\n3. a\n3. b", 2), "Intro\n3. a\n4. b");
+        // A line that is no numbered item changes nothing.
+        assert!(renumber("- a\n- b", 0).is_empty());
+        assert!(renumber("text", 5).is_empty());
+    }
+
+    #[test]
+    fn preview_counts_on() {
+        let markers = |t: &str| match &blocks(t)[..] {
+            [Block::List { items, .. }] => items.iter().map(|i| i.marker.clone()).collect::<Vec<_>>(),
+            b => panic!("{b:?}"),
+        };
+        assert_eq!(markers("1. a\n2. b\n3. c\n2. d\n2. e\n3. f"), ["1.", "2.", "3.", "4.", "5.", "6."]);
+        assert_eq!(markers("3) a\n1) b"), ["3)", "4)"]);
+        assert_eq!(markers("1. a\n  1. x\n  1. y\n1. b\n  1. z"), ["1.", "1.", "2.", "2.", "1."]);
+        assert_eq!(markers("1. a\n- b\n1. c"), ["1.", "-", "1."]);
     }
 
     #[test]

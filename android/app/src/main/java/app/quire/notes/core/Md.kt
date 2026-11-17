@@ -255,6 +255,115 @@ object Md {
         return (v.substring(0, pos) + ins + v.substring(pos)) to (pos + ins.length)
     }
 
+    /** A new number for the list marker at [start] until [end] in the text. */
+    data class NumEdit(val start: Int, val end: Int, val num: String)
+
+    private enum class LKind { ITEM, INNER, BLANK, TEXT, STOP }
+
+    private val numRe = Regex("""^(\s*)(\d+)[.)]\s""")
+
+    /**
+     * Numbers the ordered list that holds line [at] again, one step apart from its first item.
+     * Only the items at the indent of line [at] change. A port of renumber in desktop/src/md.rs.
+     */
+    fun renumber(text: String, at: Int): List<NumEdit> {
+        val lines = text.split('\n')
+        if (at !in lines.indices) return emptyList()
+        val me = numRe.find(lines[at]) ?: return emptyList()
+        val ind = me.groupValues[1].length
+        fun kind(l: String): LKind {
+            val m = isListRe.find(l)
+            if (m != null) {
+                val i = l.length - l.trimStart().length
+                return when {
+                    i == ind && m.groupValues[1][0].isDigit() -> LKind.ITEM
+                    i > ind -> LKind.INNER
+                    else -> LKind.STOP
+                }
+            }
+            if (l.isBlank()) return LKind.BLANK
+            // A line indented past the marker belongs to an item, also a code fence.
+            if (l.length - l.trimStart().length > ind) return LKind.INNER
+            return if (isStart(l)) LKind.STOP else LKind.TEXT
+        }
+        // A blank line stays in the list when an item, or text indented under one, comes next.
+        fun nextIsItem(from: Int, up: Boolean): Boolean {
+            var i = from
+            while (true) {
+                i += if (up) -1 else 1
+                if (i !in lines.indices) return false
+                when (kind(lines[i])) {
+                    LKind.BLANK -> continue
+                    LKind.ITEM, LKind.INNER -> return true
+                    LKind.TEXT -> return up
+                    LKind.STOP -> return false
+                }
+            }
+        }
+        var first = at
+        var below = LKind.ITEM
+        var i = at - 1
+        while (i >= 0) {
+            val k = kind(lines[i])
+            val ok = when (k) {
+                LKind.ITEM, LKind.INNER, LKind.TEXT -> true
+                // Text under a blank line starts a paragraph after the list.
+                LKind.BLANK -> below != LKind.TEXT && nextIsItem(i, true)
+                LKind.STOP -> false
+            }
+            if (!ok) break
+            if (k == LKind.ITEM) first = i
+            below = k
+            i--
+        }
+        var last = at
+        i = at + 1
+        while (i < lines.size) {
+            val ok = when (kind(lines[i])) {
+                LKind.ITEM, LKind.INNER, LKind.TEXT -> true
+                LKind.BLANK -> nextIsItem(i, false)
+                LKind.STOP -> false
+            }
+            if (!ok) break
+            last = i
+            i++
+        }
+        var off = 0
+        val starts = IntArray(lines.size)
+        lines.forEachIndexed { n, l ->
+            starts[n] = off
+            off += l.length + 1
+        }
+        val out = ArrayList<NumEdit>()
+        var next: Long? = null
+        for (n in first..last) {
+            if (kind(lines[n]) != LKind.ITEM) continue
+            val m = numRe.find(lines[n]) ?: continue
+            val num = m.groupValues[2].toLongOrNull() ?: continue
+            val want = next ?: num
+            next = want + 1
+            if (num != want) {
+                val a = starts[n] + m.groupValues[1].length
+                out.add(NumEdit(a, a + m.groupValues[2].length, want.toString()))
+            }
+        }
+        return out
+    }
+
+    /** Numbers the ordered list at [caret] again. The caret keeps its place in the text. */
+    fun renumberAt(text: String, caret: Int): Pair<String, Int> {
+        val line = text.substring(0, caret.coerceIn(0, text.length)).count { it == '\n' }
+        val edits = renumber(text, line)
+        if (edits.isEmpty()) return text to caret
+        val sb = StringBuilder(text)
+        var c = caret
+        for (e in edits.asReversed()) {
+            sb.replace(e.start, e.end, e.num)
+            if (e.start < caret) c += e.num.length - (e.end - e.start)
+        }
+        return sb.toString() to c
+    }
+
     /** Rewrites [[old]] and [[old|alias]] to the new note name. */
     fun rewriteLinks(text: String, oldBase: String, newBase: String): String {
         val re = Regex("""\[\[""" + Regex.escape(oldBase) + """(\|[^\]]*)?\]\]""", RegexOption.IGNORE_CASE)
@@ -526,6 +635,9 @@ object Md {
             }
             if (isList(ln)) {
                 val items = ArrayList<LItem>()
+                // The next number at each open level. A numbered list counts on from its first
+                // number, the way CommonMark does, so `1. 1. 1.` shows as 1, 2 and 3.
+                val levels = ArrayList<LongArray>()
                 while (i < lines.size && isList(lines[i])) {
                     val mm = itemRe.find(lines[i])
                     if (mm == null) {
@@ -538,10 +650,22 @@ object Md {
                     i++
                     // Lines under an item that start no new block belong to the item, indented or not.
                     while (i < lines.size && lines[i].isNotBlank() && !isStart(lines[i])) own.add(lines[i++])
+                    val ind = mm.groupValues[1].replace("\t", "  ").length
+                    while (levels.isNotEmpty() && levels.last()[0] > ind) levels.removeAt(levels.size - 1)
+                    val raw = mm.groupValues[2]
+                    val n = if (raw[0].isDigit()) raw.dropLast(1).toLongOrNull() else null
+                    val mk = if (n != null) {
+                        val top = levels.lastOrNull()
+                        val shown = if (top != null && top[0] == ind.toLong()) top[1]++ else n.also { levels.add(longArrayOf(ind.toLong(), n + 1)) }
+                        "$shown${raw.last()}"
+                    } else {
+                        if (levels.lastOrNull()?.get(0) == ind.toLong()) levels.removeAt(levels.size - 1)
+                        raw
+                    }
                     items.add(
                         LItem(
-                            ind = mm.groupValues[1].replace("\t", "  ").length,
-                            mk = mm.groupValues[2],
+                            ind = ind,
+                            mk = mk,
                             task = box != null,
                             done = box != null && box != " ",
                             text = joinLines(own),

@@ -364,6 +364,19 @@ fn source(v: V) -> El {
     el().key("source").w_full().child(mirror).child(input)
 }
 
+/// Numbers the ordered list at the caret again. The caret stays after its item's marker.
+fn renumber_at_caret(e: &mut TextEdit) {
+    let caret = e.focus;
+    let edits = md::renumber(&e.text, e.line_of_byte(caret));
+    let shift: isize = edits.iter().filter(|(r, _)| r.start < caret).map(|(r, n)| n.len() as isize - r.len() as isize).sum();
+    for (r, n) in edits.into_iter().rev() {
+        e.set_selection(r.start, r.end);
+        e.insert(&n);
+    }
+    let c = caret.saturating_add_signed(shift);
+    e.set_selection(c, c);
+}
+
 /// In focus mode, keeps the line being typed near the middle of the window.
 fn typewriter(s: &mut App, tx: &mut Tx) {
     if !(s.focus && s.settings().typewriter) {
@@ -452,7 +465,14 @@ fn on_editor_key(s: &mut App, ev: &KeyEvent, tx: &mut Tx) -> bool {
                             };
                             let spaces = &line[l.marker.end..l.after];
                             let task = if l.task.is_some() { "[ ] " } else { "" };
-                            e.insert(&format!("\n{}{mk}{spaces}{task}", &line[..l.indent]));
+                            let ins = format!("\n{}{mk}{spaces}{task}", &line[..l.indent]);
+                            // The items under the new one move down a number, in the same undo step.
+                            e.undo_group(|e| {
+                                e.insert(&ins);
+                                if l.number.is_some() {
+                                    renumber_at_caret(e);
+                                }
+                            });
                         }
                         s.after_edit();
                         typewriter(s, tx);
@@ -681,4 +701,47 @@ fn empty_vault(v: V) -> El {
                 .child(label("Create your first note", sans(13.5, 500.0), p.on_acc))
                 .child(label(k(&["Mod", "N"]), mono(11.0, 400.0), p.on_acc.alpha(0.8))),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use rune::{Env, Key, KeyEvent, Mods, Runtime};
+
+    /// Enter after an item of a numbered list moves the items under it down a number, and one
+    /// undo takes the new item and the new numbers back.
+    #[test]
+    fn enter_numbers_the_list_again() {
+        let _env = crate::scroll_tests::ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("quire-enter-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: the ENV lock keeps other tests that read these variables out.
+        unsafe {
+            std::env::set_var("HOME", &dir);
+            std::env::set_var("XDG_CONFIG_HOME", dir.join("cfg"));
+            std::env::set_var("XDG_DATA_HOME", dir.join("data"));
+        }
+        let mut rt = Runtime::new(crate::app::init(), crate::ui::view, (1280.0, 800.0), Env { system_dark: false, scale: 1.0 });
+        rt.frame(1.0 / 60.0);
+        rt.update(|s, tx| {
+            s.mode = crate::app::Mode::Source;
+            let a = s.active.clone().unwrap();
+            let start = "1. a\n2. b\n3. c\n2. d";
+            s.set_text(&a, start.into());
+            let e = s.cur_edit();
+            e.set_selection(4, 4);
+            let enter = KeyEvent { key: Key::Enter, mods: Mods::default() };
+            assert!(super::on_editor_key(s, &enter, tx));
+            s.cur_edit().insert("x");
+            s.after_edit();
+            assert_eq!(s.active_text(), "1. a\n2. x\n3. b\n4. c\n5. d");
+            // The caret sits after the typed text.
+            assert_eq!(s.cur_edit().focus, "1. a\n2. x".len());
+            let e = s.cur_edit();
+            e.undo();
+            assert_eq!(e.text, "1. a\n2. \n3. b\n4. c\n5. d");
+            e.undo();
+            assert_eq!(e.text, start, "one undo takes the item and the numbers back");
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

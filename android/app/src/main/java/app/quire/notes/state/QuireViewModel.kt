@@ -991,7 +991,11 @@ class QuireViewModel(app: Application) : AndroidViewModel(app) {
         if (v.text != old.text) {
             var nv = v
             if (settings.continueLists && isEnterInsert(old, v)) {
-                Md.continueList(old.text, old.selection.start)?.let { (t, caret) -> nv = TextFieldValue(t, TextRange(caret)) }
+                // A new numbered item moves the items under it down a number.
+                Md.continueList(old.text, old.selection.start)?.let { (t, caret) ->
+                    val (rt, rc) = Md.renumberAt(t, caret)
+                    nv = TextFieldValue(rt, TextRange(rc))
+                }
             }
             editor = nv
             hit = null
