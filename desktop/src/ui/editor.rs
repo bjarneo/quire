@@ -319,11 +319,14 @@ fn source(v: V) -> El {
     let mut fence = false;
     // Each line is cached: typing inside a line builds only that line again.
     let theme_id = (v.dark, s.settings().font.clone(), s.settings().size, s.names_gen);
+    // A line is a table row only with the lines around it, so the table parts come first.
+    let tables = md::table_lines(doc);
     for (i, ln) in doc.split('\n').enumerate() {
         let is_f = md::is_fence(ln);
         let in_code = is_f || fence;
         let opacity = dim.map(|(a, b)| if i < a || i > b { 0.28f32 } else { 1.0 });
-        let version = (ln, in_code, is_f, opacity.map(f32::to_bits), &theme_id);
+        let table = tables.get(i).copied().flatten();
+        let version = (ln, in_code, is_f, table, opacity.map(f32::to_bits), &theme_id);
         let names = &s.names;
         mirror = mirror.child(rune::memo(format!("ln-{i}"), version, || {
             let mut line_el;
@@ -331,7 +334,10 @@ fn source(v: V) -> El {
                 let spans = if is_f { vec![Span { color: Some(p.mark), ..Span::new(0, ln.len()) }] } else { Vec::new() };
                 line_el = rich(if ln.is_empty() { " ".to_string() } else { ln.to_string() }, spans).fill(p.code).color(p.ink2);
             } else {
-                let (spans, strikes) = hl_line(p, ln, names);
+                let (spans, strikes) = match table {
+                    Some(t) => hl_table(p, ln, t, names),
+                    None => hl_line(p, ln, names),
+                };
                 line_el = rich(if ln.is_empty() { " ".to_string() } else { ln.to_string() }, spans).color(p.ink).span_radius(3.0);
                 for (a, b, c) in strikes {
                     line_el = line_el.strike(a, b, Some(c));
@@ -492,6 +498,25 @@ fn on_editor_key(s: &mut App, ev: &KeyEvent, tx: &mut Tx) -> bool {
     }
 }
 
+/// Source highlighting for a table line: the pipes and the delimiter row in the marker colour,
+/// the header cells bold, and inline Markdown in each cell.
+pub fn hl_table(p: &Pal, ln: &str, part: md::TableLine, names: &md::Names) -> (Vec<Span>, Vec<(usize, usize, Color)>) {
+    let mut spans = Vec::new();
+    let mut strikes = Vec::new();
+    if part == md::TableLine::Delim {
+        spans.push(Span { color: Some(p.mark), ..Span::new(0, ln.len()) });
+        return (spans, strikes);
+    }
+    for i in md::table_pipes(ln) {
+        spans.push(Span { color: Some(p.mark), weight: Some(400.0), ..Span::new(i, i + 1) });
+    }
+    let base = if part == md::TableLine::Head { Base { weight: Some(600.0), color: Some(p.ink), italic: false, strike: false } } else { Base::default() };
+    for r in md::table_cells(ln) {
+        hl_inline(p, ln, r, base, names, &mut spans, &mut strikes);
+    }
+    (spans, strikes)
+}
+
 /// Source highlighting for one line: spans and strikethrough ranges, as the design's `hlLine`.
 pub fn hl_line(p: &Pal, ln: &str, names: &md::Names) -> (Vec<Span>, Vec<(usize, usize, Color)>) {
     let mut spans = Vec::new();
@@ -500,7 +525,7 @@ pub fn hl_line(p: &Pal, ln: &str, names: &md::Names) -> (Vec<Span>, Vec<(usize, 
     if let Some((_, start)) = md::heading_line(ln) {
         spans.push(Span { color: Some(p.acc.alpha(0.6)), ..Span::new(0, start) });
         let base = Base { weight: Some(600.0), color: Some(p.ink), italic: false, strike: false };
-        hl_inline(p, ln, start, base, names, &mut spans, &mut strikes);
+        hl_inline(p, ln, start..ln.len(), base, names, &mut spans, &mut strikes);
         return (spans, strikes);
     }
     if md::is_hr(ln) {
@@ -509,7 +534,7 @@ pub fn hl_line(p: &Pal, ln: &str, names: &md::Names) -> (Vec<Span>, Vec<(usize, 
     }
     if let Some(q) = md::quote_prefix(ln) {
         spans.push(Span { color: Some(p.acc), ..Span::new(0, q) });
-        hl_inline(p, ln, q, Base { weight: None, color: Some(p.ink2), italic: true, strike: false }, names, &mut spans, &mut strikes);
+        hl_inline(p, ln, q..ln.len(), Base { weight: None, color: Some(p.ink2), italic: true, strike: false }, names, &mut spans, &mut strikes);
         return (spans, strikes);
     }
     if let Some(l) = md::list_line(ln) {
@@ -526,10 +551,10 @@ pub fn hl_line(p: &Pal, ln: &str, names: &md::Names) -> (Vec<Span>, Vec<(usize, 
             }
             None => l.after,
         };
-        hl_inline(p, ln, from, base, names, &mut spans, &mut strikes);
+        hl_inline(p, ln, from..ln.len(), base, names, &mut spans, &mut strikes);
         return (spans, strikes);
     }
-    hl_inline(p, ln, 0, Base::default(), names, &mut spans, &mut strikes);
+    hl_inline(p, ln, 0..ln.len(), Base::default(), names, &mut spans, &mut strikes);
     (spans, strikes)
 }
 
@@ -541,8 +566,10 @@ struct Base {
     strike: bool,
 }
 
-fn hl_inline(p: &Pal, ln: &str, from: usize, base: Base, names: &md::Names, spans: &mut Vec<Span>, strikes: &mut Vec<(usize, usize, Color)>) {
-    let s = &ln[from..];
+/// Inline highlighting for the bytes `range` of a line.
+fn hl_inline(p: &Pal, ln: &str, range: std::ops::Range<usize>, base: Base, names: &md::Names, spans: &mut Vec<Span>, strikes: &mut Vec<(usize, usize, Color)>) {
+    let from = range.start;
+    let s = &ln[range];
     let plain = |a: usize, b: usize, spans: &mut Vec<Span>, strikes: &mut Vec<(usize, usize, Color)>| {
         if a >= b {
             return;

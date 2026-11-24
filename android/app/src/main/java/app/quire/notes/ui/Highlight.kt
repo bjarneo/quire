@@ -14,6 +14,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import app.quire.notes.core.Md
+import app.quire.notes.core.TableLine
 
 /** The inline pattern from inlineRe() in the prototype. */
 val inlineRe = Regex(
@@ -55,9 +56,10 @@ object Highlighter {
 
     private fun merge(base: SpanStyle?, st: SpanStyle) = base?.merge(st) ?: st
 
-    private fun inline(s: String, from: Int, base: SpanStyle?, x: Ctx) {
+    /** Inline highlighting for the characters [from] until [to] of a line. */
+    private fun inline(s: String, from: Int, base: SpanStyle?, x: Ctx, to: Int = s.length) {
         val c = x.c
-        val sub = s.substring(from)
+        val sub = s.substring(from, to)
         var last = 0
         for (m in inlineRe.findAll(sub)) {
             val st = from + m.range.first
@@ -113,7 +115,19 @@ object Highlighter {
             }
             last = m.range.last + 1
         }
-        x.sp(from + last, s.length, base)
+        x.sp(from + last, to, base)
+    }
+
+    /** A table line: the pipes and the delimiter row in the marker colour, the header cells bold, and inline Markdown in each cell. */
+    private fun tableLine(ln: String, part: TableLine, x: Ctx) {
+        val c = x.c
+        if (part == TableLine.DELIM) {
+            x.sp(0, ln.length, SpanStyle(color = c.mark))
+            return
+        }
+        for (i in Md.tablePipes(ln)) x.mk(i, i + 1)
+        val base = if (part == TableLine.HEAD) SpanStyle(fontWeight = FontWeight.W600, color = c.ink) else null
+        for (r in Md.tableCells(ln)) inline(ln, r.first, base, x, r.last + 1)
     }
 
     private fun line(ln: String, x: Ctx) {
@@ -160,6 +174,8 @@ object Highlighter {
         var fence = false
         var off = 0
         val lines = text.split('\n')
+        // A line is a table row only with the lines around it, so the table parts come first.
+        val tables = Md.tableLines(text)
         for ((i, ln) in lines.withIndex()) {
             val a = if (dim != null && (i < dim.first || i > dim.last)) 0.28f else 1f
             val x = Ctx(b, decos, c, a, off, names)
@@ -170,7 +186,8 @@ object Highlighter {
                 if (isF) fence = !fence
             } else {
                 if (a < 1f) x.sp(0, ln.length, SpanStyle(color = c.ink))
-                line(ln, x)
+                val part = tables[i]
+                if (part != null) tableLine(ln, part, x) else line(ln, x)
             }
             off += ln.length + 1
         }

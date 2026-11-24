@@ -27,6 +27,7 @@ Each note is a <code>.md</code> file on your disk, so any other app can open it.
 Quire opens a folder and edits the Markdown files in it. There is no database, no import step and no lock-in.
 
 - **Write in Markdown.** Source mode highlights the syntax as you type, in a monospaced font. `Ctrl+E` switches to a preview that reads like a printed page.
+- **Make tables.** Write a table in GitHub Markdown, with a `| --- |` row under the header. The preview shows it with its columns aligned. Colons in that row align a column left, center or right. A table that is too wide scrolls sideways.
 - **Format with a click.** A floating toolbar at the bottom of the note stays in view while you scroll. It makes text bold, italic or struck through, adds headings, links, lists, tasks, quotes and code, and inserts images. `Ctrl+B`, `Ctrl+I` and `Ctrl+K` work too. Settings, Editor can hide it.
 - **Dictate.** The microphone button in the toolbar starts the dictation of your system, and the words go in at the caret. macOS uses its own dictation. Omarchy runs `omarchy-dictation` with the backend from Setup, Defaults, Dictation. Android opens the voice input of the phone. Other systems show no button.
 - **Lock a note.** The lock button in the toolbar encrypts a note with its own password. A locked note shows nothing until you enter the password, and it syncs encrypted.

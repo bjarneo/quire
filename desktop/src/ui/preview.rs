@@ -314,6 +314,7 @@ fn block(v: V, look: &Look, names: &md::Names, b: Block) -> (f32, f32, El) {
             }
             (gap, em, c)
         }
+        Block::Table { line, align, head, rows } => (em * 1.2, em * 1.3, table(v, look, names, line, &align, &head, &rows)),
         Block::Para { line, text: t } if is_tag_line(&t) => (0.0, em * 0.95, tag_line(v, look, line, &t)),
         Block::Para { line, text: t } => {
             let mut r = Rich::default();
@@ -321,6 +322,81 @@ fn block(v: V, look: &Look, names: &md::Names, b: Block) -> (f32, f32, El) {
             (0.0, em * 0.95, r.el(body, p.ink).key(format!("pv-{line}")).w_full())
         }
     }
+}
+
+/// A browser's automatic table layout: each column at its widest content when all of it fits,
+/// between its narrowest and widest when only the narrowest fits, and at its narrowest otherwise.
+fn auto_layout(natural: &[f32], fit: &[f32], avail: f32) -> Vec<f32> {
+    let (widest, narrowest): (f32, f32) = (natural.iter().sum(), fit.iter().sum());
+    if widest <= avail {
+        return natural.to_vec();
+    }
+    if narrowest >= avail || widest <= narrowest {
+        return fit.to_vec();
+    }
+    let k = (avail - narrowest) / (widest - narrowest);
+    natural.iter().zip(fit).map(|(w, f)| f + (w - f).max(0.0) * k).collect()
+}
+
+/// A table: a rule under the header and between the rows, and no lines between the columns.
+/// The columns share the text width as a browser shares it, and a table that is too wide
+/// scrolls sideways.
+fn table(v: V, look: &Look, names: &md::Names, line: usize, align: &[md::Align], head: &[String], rows: &[Vec<String>]) -> El {
+    let p = v.p;
+    let em = look.size;
+    let size = em * 0.9;
+    let body = TextStyle::new(size, 400.0).family(look.family).lh(size * 1.5).features("'tnum' 1");
+    let bold = TextStyle { weight: 600.0, ..body };
+    let n = align.len();
+    let (pad_x, pad_y) = (em * 0.75, em * 0.45);
+    // The first and last columns line up with the text above and below the table.
+    let pl = |j: usize| if j == 0 { 0.0 } else { pad_x };
+    let pr = |j: usize| if j + 1 == n { 0.0 } else { pad_x };
+    let cell = |t: &str| {
+        let mut r = Rich::default();
+        r.inline(t, Ctx::default(), p, look, names, None);
+        r
+    };
+    let head: Vec<Rich> = head.iter().map(|t| cell(t)).collect();
+    let rows: Vec<Vec<Rich>> = rows.iter().map(|r| r.iter().map(|t| cell(t)).collect()).collect();
+    // Each column's widest content on one line, and its longest word. A point more keeps a
+    // cell at its widest from wrapping its last word.
+    let mut natural: Vec<f32> = (0..n).map(|j| pl(j) + pr(j)).collect();
+    let mut fit = natural.clone();
+    for (cells, style) in std::iter::once((&head, bold)).chain(rows.iter().map(|r| (r, body))) {
+        for (j, r) in cells.iter().enumerate().filter(|(_, r)| !r.text.is_empty()) {
+            let (min, max) = rune::text::content_widths(&r.text, &r.spans, style);
+            natural[j] = natural[j].max(max + 1.0 + pl(j) + pr(j));
+            fit[j] = fit[j].max(min + 1.0 + pl(j) + pr(j));
+        }
+    }
+    // The text width from the last layout. Before the first layout, the readable width.
+    let key = format!("pv-{line}");
+    let avail = rune::memo::layout_with(&key, |r| r[2].floor()).unwrap_or(em * 0.6 * 72.0);
+    let widths = auto_layout(&natural, &fit, avail);
+    let row_el = |key: String, cells: Vec<Rich>, style: TextStyle, color: Color, role: &'static str| {
+        let mut r = row().key(key).role("row");
+        for (j, c) in cells.into_iter().enumerate() {
+            let a = match align[j] {
+                md::Align::Left => rune::Align::Start,
+                md::Align::Center => rune::Align::Center,
+                md::Align::Right => rune::Align::End,
+            };
+            r = r.child(col().key(format!("c{j}")).w(widths[j]).pl(pl(j)).pr(pr(j)).py(pad_y).role(role).child(c.el(style, color).align(a).w_full()));
+        }
+        r
+    };
+    let rule = |key: String, color: Color| el().key(key).h(1.0).w_full().fill(color).a11y_hidden();
+    let mut t = col().key("table").role("table").w(widths.iter().sum()).child(row_el("head".into(), head, bold, p.ink, "columnheader")).child(rule("rule-head".into(), p.mark));
+    let last = rows.len();
+    for (i, cells) in rows.into_iter().enumerate() {
+        t = t.child(row_el(format!("r{i}"), cells, body, p.ink, "cell"));
+        if i + 1 < last {
+            t = t.child(rule(format!("rule-{i}"), p.line));
+        }
+    }
+    // The right edge fades while columns are hidden past it.
+    col().key(key).w_full().scroll_x().scroll_edge_fade(32.0).child(t)
 }
 
 /// One image at its own size, or narrower to fit the column. A box holds its place while it

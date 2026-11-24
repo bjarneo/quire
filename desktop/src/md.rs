@@ -396,6 +396,136 @@ pub fn is_fence(ln: &str) -> bool {
     t.starts_with("```") || t.starts_with("~~~")
 }
 
+// ---------- Tables (GitHub Flavored Markdown) ----------
+
+/// The alignment of a table column, from the colons in its delimiter cell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Align {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+/// The part of a table that a line is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TableLine {
+    Head,
+    Delim,
+    Row,
+}
+
+/// Whether the byte at `i` comes after an odd number of backslashes.
+fn escaped(b: &[u8], i: usize) -> bool {
+    b[..i].iter().rev().take_while(|&&c| c == b'\\').count() % 2 == 1
+}
+
+/// The byte offsets of the pipes that split a table row. `\|` is a pipe in the text.
+pub fn table_pipes(ln: &str) -> Vec<usize> {
+    let b = ln.as_bytes();
+    (0..b.len()).filter(|&i| b[i] == b'|' && !escaped(b, i)).collect()
+}
+
+/// The cells of a table row, as byte ranges without the spaces around them. A pipe at the start
+/// or at the end of the line is a border, not a cell.
+pub fn table_cells(ln: &str) -> Vec<std::ops::Range<usize>> {
+    let b = ln.as_bytes();
+    let mut start = ln.len() - ln.trim_start().len();
+    let mut end = ln.trim_end().len();
+    if start < end && b[start] == b'|' {
+        start += 1;
+    }
+    if end > start && b[end - 1] == b'|' && !escaped(b, end - 1) {
+        end -= 1;
+    }
+    let trim = |a: usize, z: usize| {
+        let s = &ln[a..z];
+        let a2 = a + (s.len() - s.trim_start().len());
+        a2..a2.max(a + s.trim_end().len())
+    };
+    let mut out = Vec::new();
+    let mut a = start;
+    for i in start..end {
+        if b[i] == b'|' && !escaped(b, i) {
+            out.push(trim(a, i));
+            a = i + 1;
+        }
+    }
+    out.push(trim(a, end));
+    out
+}
+
+/// The column alignments of a delimiter row such as `| :--- | :---: | ---: |`, or None when the
+/// line is no delimiter row.
+pub fn table_delim(ln: &str) -> Option<Vec<Align>> {
+    if !ln.contains('|') {
+        return None;
+    }
+    table_cells(ln)
+        .into_iter()
+        .map(|r| {
+            let c = &ln[r];
+            let (left, rest) = c.strip_prefix(':').map_or((false, c), |r| (true, r));
+            let (right, dashes) = rest.strip_suffix(':').map_or((false, rest), |r| (true, r));
+            if dashes.is_empty() || !dashes.bytes().all(|x| x == b'-') {
+                return None;
+            }
+            Some(match (left, right) {
+                (true, true) => Align::Center,
+                (false, true) => Align::Right,
+                _ => Align::Left,
+            })
+        })
+        .collect()
+}
+
+/// The column alignments when a table starts at line `i`: a row with a pipe, then a delimiter
+/// row with the same number of cells.
+fn table_at(lines: &[&str], i: usize) -> Option<Vec<Align>> {
+    let head = lines[i];
+    if is_block_start(head) || table_pipes(head).is_empty() {
+        return None;
+    }
+    let align = table_delim(lines.get(i + 1)?)?;
+    (table_cells(head).len() == align.len()).then_some(align)
+}
+
+/// Whether line `i` is a table row: not blank, and no start of another block.
+fn table_row_at(lines: &[&str], i: usize) -> bool {
+    i < lines.len() && !lines[i].trim().is_empty() && !is_block_start(lines[i])
+}
+
+/// The table part of each line, for source highlighting. It finds the same tables as `blocks`.
+pub fn table_lines(text: &str) -> Vec<Option<TableLine>> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut out = vec![None; lines.len()];
+    let mut fence = false;
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i].trim_start().starts_with("```") {
+            fence = !fence;
+        } else if !fence && table_at(&lines, i).is_some() {
+            out[i] = Some(TableLine::Head);
+            out[i + 1] = Some(TableLine::Delim);
+            i += 2;
+            while table_row_at(&lines, i) {
+                out[i] = Some(TableLine::Row);
+                i += 1;
+            }
+            continue;
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The text of each cell in a row, with `\|` as `|`, as many cells as the table has columns.
+fn row_cells(ln: &str, n: usize) -> Vec<String> {
+    let mut cells: Vec<String> = table_cells(ln).into_iter().take(n).map(|r| ln[r].replace("\\|", "|")).collect();
+    cells.resize(n, String::new());
+    cells
+}
+
 // ---------- Document facts ----------
 
 #[derive(Clone, Debug, PartialEq)]
@@ -792,6 +922,9 @@ pub enum Block {
     Rule,
     Quote { line: usize, text: String },
     List { line: usize, items: Vec<Item> },
+    /// A table: the alignment of each column, the header cells and the body rows. Each row has
+    /// one cell for each column.
+    Table { line: usize, align: Vec<Align>, head: Vec<String>, rows: Vec<Vec<String>> },
     Para { line: usize, text: String },
 }
 
@@ -1030,7 +1163,7 @@ pub fn blocks(text: &str) -> Vec<Block> {
                 let mut own = vec![&raw[text_at..]];
                 i += 1;
                 // Lines under an item that start no new block belong to the item, indented or not.
-                while i < lines.len() && !lines[i].trim().is_empty() && !is_block_start(lines[i]) {
+                while i < lines.len() && !lines[i].trim().is_empty() && !is_block_start(lines[i]) && table_at(&lines, i).is_none() {
                     own.push(lines[i]);
                     i += 1;
                 }
@@ -1063,8 +1196,21 @@ pub fn blocks(text: &str) -> Vec<Block> {
             out.push(Block::List { line: start, items });
             continue;
         }
+        if let Some(align) = table_at(&lines, i) {
+            let n = align.len();
+            let head = row_cells(ln, n);
+            i += 2;
+            let mut rows = Vec::new();
+            while table_row_at(&lines, i) {
+                rows.push(row_cells(lines[i], n));
+                i += 1;
+            }
+            out.push(Block::Table { line: start, align, head, rows });
+            continue;
+        }
         let mut buf = Vec::new();
-        while i < lines.len() && !lines[i].trim().is_empty() && (buf.is_empty() || !is_block_start(lines[i])) {
+        // A table can start under the lines of a paragraph, as GitHub reads it.
+        while i < lines.len() && !lines[i].trim().is_empty() && (buf.is_empty() || (!is_block_start(lines[i]) && table_at(&lines, i).is_none())) {
             buf.push(lines[i]);
             i += 1;
         }
@@ -1208,5 +1354,63 @@ mod image_tests {
         let b = blocks("- a\n# H\n- b\n> q");
         assert!(matches!(&b[..], [Block::List { .. }, Block::Heading { .. }, Block::List { .. }, Block::Quote { .. }]), "{b:?}");
     }
+}
 
+#[cfg(test)]
+mod table_tests {
+    use super::*;
+
+    fn table(t: &str) -> (Vec<Align>, Vec<String>, Vec<Vec<String>>) {
+        match blocks(t).into_iter().find(|b| matches!(b, Block::Table { .. })) {
+            Some(Block::Table { align, head, rows, .. }) => (align, head, rows),
+            _ => panic!("no table in {t:?}: {:?}", blocks(t)),
+        }
+    }
+
+    #[test]
+    fn tables_parse() {
+        let (align, head, rows) = table("| Name | Qty | Note |\n| :--- | ---: | :-: |\n| **Tea** | 2 | a \\| b |\n| Cake |");
+        assert_eq!(align, [Align::Left, Align::Right, Align::Center]);
+        assert_eq!(head, ["Name", "Qty", "Note"]);
+        // `\|` is a pipe in the text, and a short row gets empty cells.
+        assert_eq!(rows, [vec!["**Tea**", "2", "a | b"], vec!["Cake", "", ""]]);
+        // The pipes at the ends are optional, and a row with more cells loses the extra ones.
+        let (_, head, rows) = table("a | b\n--- | ---\n1 | 2 | 3");
+        assert_eq!((head, rows), (vec!["a".to_string(), "b".into()], vec![vec!["1".to_string(), "2".into()]]));
+        // One column needs the pipes.
+        assert_eq!(table("| One |\n| --- |\n| 1 |").2, [vec!["1"]]);
+        // A table without rows is a header.
+        assert!(table("| a |\n|---|").2.is_empty());
+    }
+
+    #[test]
+    fn tables_end_and_interrupt() {
+        // A blank line or a new block ends the table. A paragraph above it stays a paragraph.
+        let b = blocks("Intro\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter\n| x |\n|---|\n- item");
+        assert!(
+            matches!(&b[..], [Block::Para { .. }, Block::Table { line: 1, .. }, Block::Para { line: 5, .. }, Block::Table { line: 6, .. }, Block::List { .. }]),
+            "{b:?}"
+        );
+        // The delimiter row needs as many cells as the header.
+        assert!(matches!(&blocks("| a | b |\n| --- |")[..], [Block::Para { .. }]));
+        // Without a pipe a line of dashes is a rule.
+        assert!(matches!(&blocks("a\n---")[..], [Block::Para { .. }, Block::Rule]));
+        // A table in code stays code.
+        assert!(matches!(&blocks("```\n| a |\n|---|\n```")[..], [Block::Pre { .. }]));
+        // A list item ends where a table starts.
+        let b = blocks("- item\n| a |\n| - |");
+        assert!(matches!(&b[..], [Block::List { .. }, Block::Table { .. }]), "{b:?}");
+    }
+
+    #[test]
+    fn table_lines_match_blocks() {
+        use TableLine::*;
+        let t = "Text\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```\n| x |\n|---|\n```\n| c |\n|:-:|";
+        assert_eq!(table_lines(t), [None, Some(Head), Some(Delim), Some(Row), None, None, None, None, None, Some(Head), Some(Delim)]);
+        assert_eq!(table_cells("| a | `b` |  |"), [2..3, 6..9, 13..13]);
+        assert_eq!(table_pipes("| a \\| b |"), [0, 9]);
+        assert_eq!(table_delim("|:--|--:|:-:|---|"), Some(vec![Align::Left, Align::Right, Align::Center, Align::Left]));
+        assert_eq!(table_delim("| -x- |"), None);
+        assert_eq!(table_delim("---"), None);
+    }
 }

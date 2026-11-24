@@ -37,8 +37,14 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +55,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
@@ -62,9 +70,11 @@ import app.quire.notes.core.BImage
 import app.quire.notes.core.BList
 import app.quire.notes.core.BPara
 import app.quire.notes.core.BQuote
+import app.quire.notes.core.BTable
 import app.quire.notes.core.Block
 import app.quire.notes.core.LItem
 import app.quire.notes.core.Md
+import app.quire.notes.core.TAlign
 import app.quire.notes.state.QuireViewModel
 import kotlin.math.max
 
@@ -196,6 +206,7 @@ private fun margins(b: Block): Pair<Float, Float> = when (b) {
     is BHr -> 2.2f to 2.2f
     is BList -> 0.25f to 1f
     is BImage -> 0.4f to 0.95f
+    is BTable -> 1.2f to 1.3f
 }
 
 @Composable
@@ -256,6 +267,100 @@ private fun BlockView(
         }
         is BList -> Column(verticalArrangement = Arrangement.spacedBy(em(0.25f))) {
             b.items.forEach { item -> ListRow(item, root, mono, c, vm, em) { s -> remember(s, c, names) { rich(s) } } }
+        }
+        is BTable -> TableView(b, root, c, em, remember(b, c, names) { (listOf(b.head) + b.rows).map { r -> r.map { rich(it) } } })
+    }
+}
+
+/**
+ * A browser's automatic table layout: each column at its widest content when all of it fits,
+ * between its narrowest and widest when only the narrowest fits, and at its narrowest otherwise.
+ */
+private fun autoLayout(natural: IntArray, fit: IntArray, avail: Int): IntArray {
+    val widest = natural.sum()
+    val narrowest = fit.sum()
+    if (widest <= avail) return natural
+    if (narrowest >= avail || widest <= narrowest) return fit
+    val k = (avail - narrowest).toFloat() / (widest - narrowest)
+    return IntArray(natural.size) { fit[it] + (max(0, natural[it] - fit[it]) * k).toInt() }
+}
+
+/**
+ * A table: a rule under the header and between the rows, and no lines between the columns. The
+ * columns share the text width as a browser shares it, and a table that is too wide scrolls
+ * sideways, with a fade at an edge that hides columns. Follows table() in desktop/src/ui/preview.rs.
+ * [cells] holds the header row first, then the body rows.
+ */
+@Composable
+private fun TableView(b: BTable, root: TextStyle, c: QColors, em: (Float) -> Dp, cells: List<List<Rich>>) {
+    val n = b.align.size
+    val body = root.copy(fontSize = root.fontSize * 0.9f, lineHeight = 1.5.em, fontFeatureSettings = "tnum")
+    val bold = body.copy(fontWeight = FontWeight.W600)
+    val padX = em(0.75f)
+    val padY = em(0.45f)
+    // A rule under the header, and one between each two body rows.
+    val ruleCount = max(1, b.rows.size)
+    val scroll = rememberScrollState()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val avail = constraints.maxWidth
+        val fade = Modifier
+            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+            .drawWithContent {
+                drawContent()
+                val w = 32.dp.toPx()
+                if (scroll.canScrollForward) {
+                    drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - w, endX = size.width), blendMode = BlendMode.DstIn)
+                }
+                if (scroll.canScrollBackward) {
+                    drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = w), blendMode = BlendMode.DstIn)
+                }
+            }
+        Box(Modifier.fillMaxWidth().then(fade).horizontalScroll(scroll)) {
+            Layout(content = {
+                cells.forEachIndexed { r, row ->
+                    row.forEachIndexed { j, rich ->
+                        val align = when (b.align[j]) {
+                            TAlign.LEFT -> TextAlign.Start
+                            TAlign.CENTER -> TextAlign.Center
+                            TAlign.RIGHT -> TextAlign.End
+                        }
+                        // The first and last columns line up with the text above and below the table.
+                        val pad = Modifier.padding(start = if (j == 0) 0.dp else padX, end = if (j == n - 1) 0.dp else padX, top = padY, bottom = padY)
+                        RichText(rich, (if (r == 0) bold else body).copy(textAlign = align), pad)
+                    }
+                }
+                repeat(ruleCount) { k -> Box(Modifier.background(if (k == 0) c.mark else c.line)) }
+            }) { ms, _ ->
+                val cellCount = cells.size * n
+                val natural = IntArray(n)
+                val fit = IntArray(n)
+                for (k in 0 until cellCount) {
+                    val j = k % n
+                    natural[j] = max(natural[j], ms[k].maxIntrinsicWidth(Constraints.Infinity))
+                    fit[j] = max(fit[j], ms[k].minIntrinsicWidth(Constraints.Infinity))
+                }
+                val widths = autoLayout(natural, fit, avail)
+                val total = widths.sum()
+                val placed = (0 until cellCount).map { k -> ms[k].measure(Constraints.fixedWidth(widths[k % n])) }
+                val rowH = IntArray(cells.size) { r -> (0 until n).maxOf { placed[r * n + it].height } }
+                val rulePx = max(1, 1.dp.roundToPx())
+                val rules = (cellCount until ms.size).map { ms[it].measure(Constraints.fixed(total, rulePx)) }
+                layout(total, rowH.sum() + rules.size * rulePx) {
+                    var y = 0
+                    rowH.forEachIndexed { r, h ->
+                        var x = 0
+                        for (j in 0 until n) {
+                            placed[r * n + j].placeRelative(x, y)
+                            x += widths[j]
+                        }
+                        y += h
+                        if (r < rules.size) {
+                            rules[r].placeRelative(0, y)
+                            y += rulePx
+                        }
+                    }
+                }
+            }
         }
     }
 }

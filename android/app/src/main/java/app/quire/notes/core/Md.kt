@@ -26,6 +26,15 @@ data class BList(override val line: Int, val ordered: Boolean, val items: List<L
 /** A line of nothing but images. */
 data class BImage(override val line: Int, val images: List<Img>) : Block()
 
+/** The alignment of a table column, from the colons in its delimiter cell. */
+enum class TAlign { LEFT, CENTER, RIGHT }
+
+/** The part of a table that a line is. */
+enum class TableLine { HEAD, DELIM, ROW }
+
+/** A table: the alignment of each column, the header cells and the body rows. Each row has one cell for each column. */
+data class BTable(override val line: Int, val align: List<TAlign>, val head: List<String>, val rows: List<List<String>>) : Block()
+
 /**
  * An image in a note: `![alt](src)`, or `![[name]]` as other Markdown apps write an embed.
  * With [embed], [src] is a file name to find anywhere in the notes folder.
@@ -405,6 +414,106 @@ object Md {
     private fun isList(l: String) = isListRe.containsMatchIn(l)
     private fun isStart(l: String) = isStartRe.containsMatchIn(l) || isList(l) || isHr(l) || imageLine(l) != null
 
+    // Tables (GitHub Flavored Markdown). A port of the table functions in desktop/src/md.rs.
+
+    /** True when the character at [i] comes after an odd number of backslashes. */
+    private fun escaped(s: String, i: Int): Boolean {
+        var n = 0
+        var k = i - 1
+        while (k >= 0 && s[k] == '\\') {
+            n++
+            k--
+        }
+        return n % 2 == 1
+    }
+
+    /** The offsets of the pipes that split a table row. A backslash before a pipe makes it text. */
+    fun tablePipes(ln: String): List<Int> = ln.indices.filter { ln[it] == '|' && !escaped(ln, it) }
+
+    /**
+     * The cells of a table row, as ranges without the spaces around them. A pipe at the start or at
+     * the end of the line is a border, not a cell.
+     */
+    fun tableCells(ln: String): List<IntRange> {
+        var start = ln.length - ln.trimStart().length
+        var end = ln.trimEnd().length
+        if (start < end && ln[start] == '|') start++
+        if (end > start && ln[end - 1] == '|' && !escaped(ln, end - 1)) end--
+        fun trim(a: Int, z: Int): IntRange {
+            var x = a
+            var y = z
+            while (x < y && ln[x].isWhitespace()) x++
+            while (y > x && ln[y - 1].isWhitespace()) y--
+            return x until y
+        }
+        val out = ArrayList<IntRange>()
+        var a = start
+        for (i in start until end) {
+            if (ln[i] == '|' && !escaped(ln, i)) {
+                out.add(trim(a, i))
+                a = i + 1
+            }
+        }
+        out.add(trim(a, end))
+        return out
+    }
+
+    /** The column alignments of a delimiter row such as `| :--- | :---: | ---: |`, or null when the line is no delimiter row. */
+    fun tableDelim(ln: String): List<TAlign>? {
+        if (!ln.contains('|')) return null
+        return tableCells(ln).map { r ->
+            val c = ln.substring(r.first, r.last + 1)
+            val left = c.startsWith(":")
+            val rest = if (left) c.substring(1) else c
+            val right = rest.endsWith(":")
+            val dashes = if (right) rest.dropLast(1) else rest
+            if (dashes.isEmpty() || dashes.any { it != '-' }) return null
+            when {
+                left && right -> TAlign.CENTER
+                right -> TAlign.RIGHT
+                else -> TAlign.LEFT
+            }
+        }
+    }
+
+    /** The column alignments when a table starts at line [i]: a row with a pipe, then a delimiter row with the same number of cells. */
+    private fun tableAt(lines: List<String>, i: Int): List<TAlign>? {
+        val head = lines[i]
+        if (isStart(head) || tablePipes(head).isEmpty()) return null
+        val align = tableDelim(lines.getOrNull(i + 1) ?: return null) ?: return null
+        return if (tableCells(head).size == align.size) align else null
+    }
+
+    /** True when line [i] is a table row: not blank, and no start of another block. */
+    private fun tableRowAt(lines: List<String>, i: Int) = i < lines.size && lines[i].isNotBlank() && !isStart(lines[i])
+
+    /** The table part of each line, for source highlighting. It finds the same tables as [parseBlocks]. */
+    fun tableLines(text: String): Array<TableLine?> {
+        val lines = text.split('\n')
+        val out = arrayOfNulls<TableLine>(lines.size)
+        var fence = false
+        var i = 0
+        while (i < lines.size) {
+            if (fenceStart.containsMatchIn(lines[i])) {
+                fence = !fence
+            } else if (!fence && tableAt(lines, i) != null) {
+                out[i] = TableLine.HEAD
+                out[i + 1] = TableLine.DELIM
+                i += 2
+                while (tableRowAt(lines, i)) out[i++] = TableLine.ROW
+                continue
+            }
+            i++
+        }
+        return out
+    }
+
+    /** The text of each cell in a row, with a backslash and a pipe as a pipe, as many cells as the table has columns. */
+    private fun rowCells(ln: String, n: Int): List<String> {
+        val cells = tableCells(ln).take(n).map { ln.substring(it.first, it.last + 1).replace("\\|", "|") }
+        return cells + List(n - cells.size) { "" }
+    }
+
     /** The file types that the preview shows as images, and that sync carries next to the notes. */
     val IMAGE_EXT = listOf("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif")
 
@@ -649,7 +758,7 @@ object Md {
                     val own = arrayListOf(mm.groupValues[4])
                     i++
                     // Lines under an item that start no new block belong to the item, indented or not.
-                    while (i < lines.size && lines[i].isNotBlank() && !isStart(lines[i])) own.add(lines[i++])
+                    while (i < lines.size && lines[i].isNotBlank() && !isStart(lines[i]) && tableAt(lines, i) == null) own.add(lines[i++])
                     val ind = mm.groupValues[1].replace("\t", "  ").length
                     while (levels.isNotEmpty() && levels.last()[0] > ind) levels.removeAt(levels.size - 1)
                     val raw = mm.groupValues[2]
@@ -677,8 +786,18 @@ object Md {
                 if (items.isNotEmpty()) out.add(BList(start, items[0].mk.any { it.isDigit() }, items))
                 continue
             }
+            val align = tableAt(lines, i)
+            if (align != null) {
+                val head = rowCells(ln, align.size)
+                i += 2
+                val rows = ArrayList<List<String>>()
+                while (tableRowAt(lines, i)) rows.add(rowCells(lines[i++], align.size))
+                out.add(BTable(start, align, head, rows))
+                continue
+            }
             val buf = ArrayList<String>()
-            while (i < lines.size && lines[i].isNotBlank() && (buf.isEmpty() || !isStart(lines[i]))) buf.add(lines[i++])
+            // A table can start under the lines of a paragraph, as GitHub reads it.
+            while (i < lines.size && lines[i].isNotBlank() && (buf.isEmpty() || (!isStart(lines[i]) && tableAt(lines, i) == null))) buf.add(lines[i++])
             out.add(BPara(start, joinLines(buf)))
         }
         return out
